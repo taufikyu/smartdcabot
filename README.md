@@ -1,6 +1,6 @@
 # 🤖 Smart DCA Bot (Binance Edition)
 
-<img src="preview.JPG" alt="Preview DCA Bot" width="400">
+<img src="PREVIEW.JPG" alt="Preview DCA Bot" width="400">
 
 Bot trading DCA (Dollar Cost Averaging) otomatis yang dirancang khusus untuk pasangan DOGE/USDT. Bot ini tidak hanya sekadar membeli saat turun, tapi dilengkapi dengan algoritma cerdas untuk meminimalisir risiko dan memaksimalkan profit saat terjadi rebound.
 
