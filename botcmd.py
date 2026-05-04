@@ -19,7 +19,7 @@ DEBUG = False
 delay = 5
 PAIR = "DOGEUSDT"
 BUDGET_USD = 250
-BUY_AMOUNT = 25
+BUY_AMOUNT = 35.7
 DROP_THRESHOLD = 0.01
 MAX_LOSS_PERCENT = -15
 FEE_RATE = 0.001
@@ -513,7 +513,7 @@ def get_dynamic_drop_threshold():
     layer_count = len(data['buys'])
     base_drop = data["config"]["drop_threshold"]
     
-    if layer_count <= 2:
+    if layer_count <= 3:
         return base_drop + (layer_count * 0.002)
     elif layer_count <= 5:
         return base_drop + (layer_count * 0.005)
@@ -818,12 +818,6 @@ while True:
 
             if len(data['buys']) > 0 and len(data['buys']) <= 3 and drop_percent > 50:
                 buy()
-                time.sleep(delay)
-                continue
-
-            if len(data['buys']) >= 3 and diff > -4:
-                if DEBUG:
-                    print("[DBG] Skip buy - layer 3 guard, drop < 4%")
                 time.sleep(delay)
                 continue
 
