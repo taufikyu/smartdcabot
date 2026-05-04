@@ -25,6 +25,7 @@ MAX_LOSS_PERCENT = -15
 FEE_RATE = 0.001
 TAKE_PROFIT_MARGIN = 0.006 + FEE_RATE
 TRAILING_MARGIN = 0.008
+MIN_BUY_INTERVAL = 30
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_FILE = os.path.join(BASE_DIR, "trade_log.txt")
@@ -265,237 +266,237 @@ def load_data():
         
 # ============ Order helpers (DCA) ============
 def buy():
-    pass
-    #global data
-    #available = get_balance_from_cache("USDT")
-    #
-    #if is_dead_market():
-    #    if DEBUG:
-    #        print("Market dead, skip buy")
-    #    return
-    #
-    #desired_buy_amount = data["config"]["buy_amount"]
-    #if available < 0.000001 or data['budget_left'] < 0.000001:
-    #    if DEBUG:
-    #        print("[DBG BUY] no funds available, skip. available=", available, "budget_left=", data['budget_left'])
-    #    return
-    #    
-    #price = get_ticker_price(PAIR)
-    #if price == 0:
-    #    if DEBUG:
-    #        print("[DBG BUY] price == 0, skip")
-    #    return
-    #
-    #step = get_step_size(PAIR)
-    #min_qty = get_min_qty(PAIR)
-    #min_notional = get_notion(PAIR)
-    #
-    #desired_buy_amount = get_adaptive_buy_amount()
-    #    
-    #min_buy, max_buy = get_dynamic_buy_limits()
-    #
-    #if min_buy and current_price < min_buy:
-    #    if DEBUG:
-    #        print("[DBG BUY] below dynamic min_buy {}, skip".format(round(min_buy,5)))
-    #    return
-    #
-    #if max_buy and current_price > max_buy:
-    #    if DEBUG:
-    #        print("[DBG BUY] above dynamic max_buy {}, skip".format(round(max_buy,5)))
-    #    return
-    #
-    ## ======= NEW: pastikan quote minimal memenuhi min_notional + buffer =======
-    #SAFE_BUFFER = max(0.05, min_notional * 0.05)
-    #recommended_quote = max(desired_buy_amount, min_notional + SAFE_BUFFER)
-    #usable_quote = min(recommended_quote, available, data['budget_left'])
-    #
-    #if DEBUG:
-    #    gross_needed = required_gross_qty_for_min_net(min_qty, step, data["config"]["fee_rate"])
-    #    quote_needed_for_gross = required_quote_for_gross_qty(gross_needed, price)
-    #    print(f"[DBG BUY] desired={desired_buy_amount:.6f} recommended={recommended_quote:.6f} usable={usable_quote:.6f} price={price:.6f} min_notional={min_notional:.6f} quote_needed_for_gross={quote_needed_for_gross:.6f}")
-    #
-    #if usable_quote < min_notional:
-    #    if DEBUG:
-    #        print(f"[DBG BUY] usable_quote {usable_quote:.6f} < min_notional {min_notional:.6f}, skip")
-    #    return
-    #
-    #try:
-    #    get_account_cached(force=True)
-    #    order = safe_api_call(
-    #        client.order_market_buy,
-    #        symbol=PAIR,
-    #        quoteOrderQty=round(float(usable_quote), 6),
-    #        newOrderRespType='FULL'
-    #    )
-    #
-    #    fills = order.get('fills') or []
-    #    if not fills:
-    #        if DEBUG:
-    #            print("[DBG BUY] order filled no fills, skip")
-    #        log_action("BUY_FAILED", 0, 0, message="no fills returned")
-    #        return
-    #
-    #    total_cost = sum(float(f['price']) * float(f['qty']) for f in fills)
-    #    total_qty = sum(float(f['qty']) for f in fills)
-    #    avg_fill_price = total_cost / total_qty if total_qty else 0.0
-    #
-    #    total_fee_usdt = 0
-    #    for f in fills:
-    #        commission = float(f['commission'])
-    #        asset = f['commissionAsset']
-    #        if asset != "USDT":
-    #            try:
-    #                ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
-    #                fee_price = float(ticker['price'])
-    #                total_fee_usdt += commission * fee_price
-    #            except:
-    #                pass
-    #        else:
-    #            total_fee_usdt += commission
-    #
-    #    net_cost = total_cost + total_fee_usdt
-    #
-    #    data['buys'].append({
-    #        "price": avg_fill_price,
-    #        "qty": total_qty,
-    #    })
-    #    
-    #    data['budget_left'] -= usable_quote
-    #    data['last_buy_time'] = int(time.time())
-    #    
-    #    data['lowest_price'] = min(data.get('lowest_price', current_price), current_price)
-    #    save_data(data)
-    #
-    #    log_action("BUY", avg_fill_price, total_qty,
-    #               message=f"cost={total_cost:.8f} USDT | fee={total_fee_usdt:.8f} | net={net_cost:.8f} | usable_quote={usable_quote:.6f}")
-    #
-    #    get_account_cached(force=True)
-    #    time.sleep(1)
-    #
-    #except Exception as e:
-    #    if DEBUG:
-    #        print("[DBG BUY] order_market_buy failed:", e)
-    #    log_action("BUY_ERROR", 0, 0, message=str(e))
-    #    return
+    global data
+    available = get_balance_from_cache("USDT")
+    
+    if is_dead_market():
+        if DEBUG:
+            print("Market dead, skip buy")
+        return
+    
+    desired_buy_amount = data["config"]["buy_amount"]
+    if available < 0.000001 or data['budget_left'] < 0.000001:
+        if DEBUG:
+            print("[DBG BUY] no funds available, skip. available=", available, "budget_left=", data['budget_left'])
+        return
+        
+    price = get_ticker_price(PAIR)
+    if price == 0:
+        if DEBUG:
+            print("[DBG BUY] price == 0, skip")
+        return
+    
+    step = get_step_size(PAIR)
+    min_qty = get_min_qty(PAIR)
+    min_notional = get_notion(PAIR)
+    
+    desired_buy_amount = get_adaptive_buy_amount()
+        
+    min_buy, max_buy = get_dynamic_buy_limits()
+    
+    if min_buy and current_price < min_buy:
+        if DEBUG:
+            print("[DBG BUY] below dynamic min_buy {}, skip".format(round(min_buy,5)))
+        return
+    
+    if max_buy and current_price > max_buy:
+        if DEBUG:
+            print("[DBG BUY] above dynamic max_buy {}, skip".format(round(max_buy,5)))
+        return
+    
+    # ======= NEW: pastikan quote minimal memenuhi min_notional + buffer =======
+    SAFE_BUFFER = max(0.05, min_notional * 0.05)
+    recommended_quote = max(desired_buy_amount, min_notional + SAFE_BUFFER)
+    usable_quote = min(recommended_quote, available, data['budget_left'])
+    
+    if DEBUG:
+        gross_needed = required_gross_qty_for_min_net(min_qty, step, data["config"]["fee_rate"])
+        quote_needed_for_gross = required_quote_for_gross_qty(gross_needed, price)
+        print(f"[DBG BUY] desired={desired_buy_amount:.6f} recommended={recommended_quote:.6f} usable={usable_quote:.6f} price={price:.6f} min_notional={min_notional:.6f} quote_needed_for_gross={quote_needed_for_gross:.6f}")
+    
+    if usable_quote < min_notional:
+        if DEBUG:
+            print(f"[DBG BUY] usable_quote {usable_quote:.6f} < min_notional {min_notional:.6f}, skip")
+        return
+    
+    try:
+        get_account_cached(force=True)
+        order = safe_api_call(
+            client.order_market_buy,
+            symbol=PAIR,
+            quoteOrderQty=round(float(usable_quote), 6),
+            newOrderRespType='FULL'
+        )
+    
+        fills = order.get('fills') or []
+        if not fills:
+            if DEBUG:
+                print("[DBG BUY] order filled no fills, skip")
+            log_action("BUY_FAILED", 0, 0, message="no fills returned")
+            return
+    
+        total_cost = sum(float(f['price']) * float(f['qty']) for f in fills)
+        total_qty = sum(float(f['qty']) for f in fills)
+        avg_fill_price = total_cost / total_qty if total_qty else 0.0
+    
+        total_fee_usdt = 0
+        for f in fills:
+            commission = float(f['commission'])
+            asset = f['commissionAsset']
+            if asset != "USDT":
+                try:
+                    ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                    fee_price = float(ticker['price'])
+                    total_fee_usdt += commission * fee_price
+                except:
+                    pass
+            else:
+                total_fee_usdt += commission
+    
+        net_cost = total_cost + total_fee_usdt
+    
+        data['buys'].append({
+            "price": avg_fill_price,
+            "qty": total_qty,
+        })
+        
+        data['budget_left'] -= usable_quote
+        data['last_buy_time'] = int(time.time())
+        
+        data['lowest_price'] = min(data.get('lowest_price', current_price), current_price)
+        save_data(data)
+    
+        log_action("BUY", avg_fill_price, total_qty,
+                   message=f"cost={total_cost:.8f} USDT | fee={total_fee_usdt:.8f} | net={net_cost:.8f} | usable_quote={usable_quote:.6f}")
+    
+        get_account_cached(force=True)
+        time.sleep(1)
+    
+    except Exception as e:
+        if DEBUG:
+            print("[DBG BUY] order_market_buy failed:", e)
+        log_action("BUY_ERROR", 0, 0, message=str(e))
+        return
 
 def sell_all(CUT_LOSS=False):
-    pass
-    #global data
-    #try:
-    #    get_account_cached(force=True)
-    #    live_qty = get_balance_from_cache("DOGE")
-    #
-    #    avg_price = get_avg_buy()
-    #    if avg_price <= 0:
-    #        return
-    #
-    #    price = get_ticker_price(PAIR)
-    #    if price == 0:
-    #        return
-    #
-    #    step = get_step_size(PAIR)
-    #    min_qty = get_min_qty(PAIR)
-    #    min_notional = get_notion(PAIR)
-    #
-    #    qty = floor_to_step(live_qty, step)
-    #    notional = price * qty
-    #
-    #    if qty < min_qty:
-    #        return
-    #    if notional < min_notional:
-    #        return
-    #    
-    #    if not CUT_LOSS:
-    #        profit = calc_profit(avg_price, price, qty)
-    #        if profit < 0:
-    #            return
-    #
-    #    order = safe_api_call(
-    #        client.order_market_sell,
-    #        symbol=PAIR,
-    #        quantity=qty,
-    #        newOrderRespType='FULL'  # tambahkan ini!
-    #    )
-    #    fills = order.get('fills', [])
-    #    if fills:
-    #        total_sell = sum(float(f['price']) * float(f['qty']) for f in fills)
-    #        total_qty = sum(float(f['qty']) for f in fills)
-    #        avg_sell_price = total_sell / total_qty if total_qty else 0
-    #
-    #        total_fee_usdt = 0
-    #        for f in fills:
-    #            commission = float(f['commission'])
-    #            asset = f['commissionAsset']
-    #            if asset != "USDT":
-    #                try:
-    #                    ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
-    #                    fee_price = float(ticker['price'])
-    #                    total_fee_usdt += commission * fee_price
-    #                except:
-    #                    pass
-    #            else:
-    #                total_fee_usdt += commission
-    #
-    #        total_buy_cost = 0
-    #        total_buy_qty = 0
-    #        total_buy_fee_usdt = 0
-    #
-    #        for b in data["buys"]:
-    #            b_price = float(b["price"])
-    #            b_qty = float(b["qty"])
-    #            b_fee = b_price * b_qty * data["config"]["fee_rate"]
-    #            total_buy_cost += b_price * b_qty
-    #            total_buy_qty += b_qty
-    #            total_buy_fee_usdt += b_fee
-    #
-    #        avg_buy_price = total_buy_cost / total_buy_qty if total_buy_qty else 0
-    #        profit_real = (avg_sell_price - avg_buy_price) * total_buy_qty - (total_buy_fee_usdt + total_fee_usdt)
-    #
-    #        if DEBUG:
-    #            print("\n[SELL BREAKDOWN]")
-    #            for b in data["buys"]:
-    #                layer_profit = (avg_sell_price - b["price"]) * b["qty"]
-    #                print(f"  Layer @ {b['price']:.5f} | Qty: {b['qty']} | Profit: {layer_profit:.6f}")
-    #            print(f"Total Profit (real): {profit_real:.8f}\n")
-    #
-    #    else:
-    #        avg_sell_price = get_ticker_price(PAIR)
-    #        profit_real = calc_profit(avg_price, avg_sell_price, qty)
-    #
-    #    log_action("SELL", avg_sell_price, qty, f"{profit_real:.8f}")
-    #
-    #    get_account_cached(force=True)
-    #    available_usdt = get_balance_from_cache("USDT")
-    #    
-    #    new_budget = min(available_usdt, BUDGET_USD)
-    #    data = {
-    #        "buys": [],
-    #        "budget_left": floor(new_budget),
-    #        "peak_price": get_ticker_price(PAIR),
-    #        "lowest_price": get_ticker_price(PAIR),
-    #        "peak_time": int(time.time()),
-    #        "last_buy_time": 0,
-    #        "config": {
-    #            "budget_usd": floor(new_budget),
-    #            "buy_amount": BUY_AMOUNT,
-    #            "drop_threshold": DROP_THRESHOLD,
-    #            "max_loss_percent": MAX_LOSS_PERCENT,
-    #            "fee_rate": FEE_RATE,
-    #            "take_profit_margin": TAKE_PROFIT_MARGIN,
-    #            "trailing_margin": TRAILING_MARGIN
-    #        }
-    #    }
-    #    save_data(data)
-    #
-    #    if AUTO_STOP_AFTER_SELL:
-    #        sys.exit()
-    #
-    #    get_account_cached(force=True)
-    #    time.sleep(1)
-    #
-    #except Exception as e:
-    #    if DEBUG:
-    #        print("ERROR SELL gagal: {} ".format(str(e)))
+    global data
+    try:
+        get_account_cached(force=True)
+        live_qty = get_balance_from_cache("DOGE")
+        current_history = data.get('history_1h', [])
+    
+        avg_price = get_avg_buy()
+        if avg_price <= 0:
+            return
+    
+        price = get_ticker_price(PAIR)
+        if price == 0:
+            return
+    
+        step = get_step_size(PAIR)
+        min_qty = get_min_qty(PAIR)
+        min_notional = get_notion(PAIR)
+    
+        qty = floor_to_step(live_qty, step)
+        notional = price * qty
+    
+        if qty < min_qty:
+            return
+        if notional < min_notional:
+            return
+        
+        if not CUT_LOSS:
+            profit = calc_profit(avg_price, price, qty)
+            if profit < 0:
+                return
+    
+        order = safe_api_call(
+            client.order_market_sell,
+            symbol=PAIR,
+            quantity=qty,
+            newOrderRespType='FULL'  # tambahkan ini!
+        )
+        fills = order.get('fills', [])
+        if fills:
+            total_sell = sum(float(f['price']) * float(f['qty']) for f in fills)
+            total_qty = sum(float(f['qty']) for f in fills)
+            avg_sell_price = total_sell / total_qty if total_qty else 0
+    
+            total_fee_usdt = 0
+            for f in fills:
+                commission = float(f['commission'])
+                asset = f['commissionAsset']
+                if asset != "USDT":
+                    try:
+                        ticker = client.get_symbol_ticker(symbol=f"{asset}USDT")
+                        fee_price = float(ticker['price'])
+                        total_fee_usdt += commission * fee_price
+                    except:
+                        pass
+                else:
+                    total_fee_usdt += commission
+    
+            total_buy_cost = 0
+            total_buy_qty = 0
+            total_buy_fee_usdt = 0
+    
+            for b in data["buys"]:
+                b_price = float(b["price"])
+                b_qty = float(b["qty"])
+                b_fee = b_price * b_qty * data["config"]["fee_rate"]
+                total_buy_cost += b_price * b_qty
+                total_buy_qty += b_qty
+                total_buy_fee_usdt += b_fee
+    
+            avg_buy_price = total_buy_cost / total_buy_qty if total_buy_qty else 0
+            profit_real = (avg_sell_price - avg_buy_price) * total_buy_qty - (total_buy_fee_usdt + total_fee_usdt)
+    
+            if DEBUG:
+                print("\n[SELL BREAKDOWN]")
+                for b in data["buys"]:
+                    layer_profit = (avg_sell_price - b["price"]) * b["qty"]
+                    print(f"  Layer @ {b['price']:.5f} | Qty: {b['qty']} | Profit: {layer_profit:.6f}")
+                print(f"Total Profit (real): {profit_real:.8f}\n")
+    
+        else:
+            avg_sell_price = get_ticker_price(PAIR)
+            profit_real = calc_profit(avg_price, avg_sell_price, qty)
+    
+        log_action("SELL", avg_sell_price, qty, f"{profit_real:.8f}")
+    
+        get_account_cached(force=True)
+        available_usdt = get_balance_from_cache("USDT")
+        
+        new_budget = min(available_usdt, BUDGET_USD)
+        data = {
+            "buys": [],
+            "budget_left": floor(new_budget),
+            "peak_price": get_ticker_price(PAIR),
+            "lowest_price": get_ticker_price(PAIR),
+            "peak_time": int(time.time()),
+            "last_buy_time": 0,
+            "history_1h": current_history,
+            "config": {
+                "budget_usd": floor(new_budget),
+                "buy_amount": BUY_AMOUNT,
+                "drop_threshold": DROP_THRESHOLD,
+                "max_loss_percent": MAX_LOSS_PERCENT,
+                "fee_rate": FEE_RATE,
+                "take_profit_margin": TAKE_PROFIT_MARGIN,
+                "trailing_margin": TRAILING_MARGIN
+            }
+        }
+        save_data(data)
+    
+        if AUTO_STOP_AFTER_SELL:
+            sys.exit()
+    
+        get_account_cached(force=True)
+        time.sleep(1)
+    
+    except Exception as e:
+        if DEBUG:
+            print("ERROR SELL gagal: {} ".format(str(e)))
 
 def get_avg_buy():
     total_qty = sum([b['qty'] for b in data['buys']])
@@ -589,15 +590,28 @@ def get_dynamic_buy_limits():
 
     return min_buy, max_buy
     
-def is_market_dumping():
-
-    peak = data['peak_price']
-    if peak <= 0:
+def is_market_volatile():
+    history = data.get('history_1h', [])
+    
+    if len(history) < 24:
         return False
-
-    drop_from_peak = (peak - current_price) / peak
-
-    return drop_from_peak > 0.03
+        
+    price_1_hour_ago = history[0]
+    
+    drop_percent = (price_1_hour_ago - current_price) / price_1_hour_ago
+    pump_percent = (current_price - price_1_hour_ago) / price_1_hour_ago
+    
+    if drop_percent > 0.03:
+        if "DEBUG" in globals() and DEBUG:
+            print(f"[DBG] MARKET DUMPING! Turun {round(drop_percent*100, 2)}% sejam terakhir. Pause Buy.")
+        return True
+        
+    if pump_percent > 0.03:
+        if "DEBUG" in globals() and DEBUG:
+            print(f"[DBG] MARKET PUMPING! Naik {round(pump_percent*100, 2)}% sejam terakhir. Rawan koreksi, Pause Buy.")
+        return True
+        
+    return False
     
 def get_adaptive_buy_amount():
 
@@ -605,16 +619,16 @@ def get_adaptive_buy_amount():
     base = data["config"]["buy_amount"]
     return base
 
-    if total_layers <= 1:
-        return base
-
-    if total_layers <= 3:
-        return base * 0.8
-
-    if total_layers <= 5:
-        return base * 0.6
-
-    return base * 0.5
+    #if total_layers <= 1:
+    #    return base
+    #
+    #if total_layers <= 3:
+    #    return base * 0.8
+    #
+    #if total_layers <= 5:
+    #    return base * 0.6
+    #
+    #return base * 0.5
     
 def is_rebounding():
 
@@ -691,9 +705,22 @@ current_price = get_ticker_price(PAIR)
 if current_price > 0:
     display_status()
     
+last_price_log_time = 0
+    
 while True:
     try:
         current_price = get_ticker_price(PAIR)
+        if time.time() - last_price_log_time > 300:
+            log_price_to_file(current_price)
+            last_price_log_time = time.time()
+            
+            if 'history_1h' not in data:
+                data['history_1h'] = []
+            data['history_1h'].append(current_price)
+            
+            if len(data['history_1h']) > 24:
+                data['history_1h'].pop(0)
+            save_data(data)
         if current_price == 0:
             if DEBUG:
                 print("CURRENT PRICE = 0")
@@ -744,7 +771,7 @@ while True:
             and free_usdt >= min_notional \
             and (avg_price == 0 or current_price <= avg_price * (1 - get_dynamic_drop_threshold())):
                 
-            if is_market_dumping() and len(data['buys']) > 0:
+            if is_market_volatile() and len(data['buys']) > 0:
                 if DEBUG:
                     print("[DBG] market dumping, pause buy")
                 time.sleep(60)
@@ -765,15 +792,20 @@ while True:
                 continue
 
             cooldown_secs = get_dynamic_cooldown_secs()
+            if time.time() - data.get('last_buy_time', 0) < MIN_BUY_INTERVAL:
+                if DEBUG:
+                    print("[DBG] MIN BUY INTERVAL aktif, skip")
+                time.sleep(delay)
+                continue
 
             if len(data['buys']) > 0 and len(data['buys']) <= 3 and drop_percent > 50:
                 buy()
                 time.sleep(delay)
                 continue
 
-            if len(data['buys']) >= 3 and diff > -5:
+            if len(data['buys']) >= 3 and diff > -4:
                 if DEBUG:
-                    print("[DBG] Skip buy - layer 3 guard, drop < 5%")
+                    print("[DBG] Skip buy - layer 3 guard, drop < 4%")
                 time.sleep(delay)
                 continue
 
