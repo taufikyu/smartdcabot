@@ -48,6 +48,10 @@ LAST_API_CALL = 0.0
 MIN_API_INTERVAL = 0.05
 
 # ============ HELPERS ============
+def log_price_to_file(price):
+    with open("price_history.txt", "a") as f:
+        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Price: {price}\n")
+        
 def log_action(action, price=0.0, qty=0.0, profit=0.0, message=""):
     with open(LOG_FILE, 'a') as log:
         log.write("[{}] {} | Price: {} | Qty: {} | Profit: {} | {}\n".format(
@@ -506,7 +510,15 @@ def get_avg_buy():
     return total_cost / total_qty
 
 def get_dynamic_drop_threshold():
-    return data["config"]["drop_threshold"] + (len(data['buys']) * 0.002)
+    layer_count = len(data['buys'])
+    base_drop = data["config"]["drop_threshold"]
+    
+    if layer_count <= 2:
+        return base_drop + (layer_count * 0.002)
+    elif layer_count <= 5:
+        return base_drop + (layer_count * 0.005)
+    else:
+        return base_drop + (layer_count * 0.02)
 
 def get_dynamic_cooldown_secs():
 
@@ -596,19 +608,26 @@ def is_market_volatile():
     if len(history) < 24:
         return False
         
-    price_1_hour_ago = history[0]
+    raw_prices = [p.get('price', 0) if isinstance(p, dict) else float(p) for p in history]
+    valid_prices = [p for p in raw_prices if p > 0]
     
-    drop_percent = (price_1_hour_ago - current_price) / price_1_hour_ago
-    pump_percent = (current_price - price_1_hour_ago) / price_1_hour_ago
+    if not valid_prices:
+        return False
+        
+    max_1h = max(valid_prices)
+    min_1h = min(valid_prices)
+    
+    drop_percent = (max_1h - current_price) / max_1h
+    pump_percent = (current_price - min_1h) / min_1h
     
     if drop_percent > 0.03:
         if "DEBUG" in globals() and DEBUG:
-            print(f"[DBG] MARKET DUMPING! Turun {round(drop_percent*100, 2)}% sejam terakhir. Pause Buy.")
+            print(f"[DBG] MARKET DUMPING (PISAU JATUH)! Turun {round(drop_percent*100, 2)}% dari Pucuk sejam terakhir. Pause Buy.")
         return True
         
     if pump_percent > 0.03:
         if "DEBUG" in globals() and DEBUG:
-            print(f"[DBG] MARKET PUMPING! Naik {round(pump_percent*100, 2)}% sejam terakhir. Rawan koreksi, Pause Buy.")
+            print(f"[DBG] MARKET PUMPING (FOMO)! Naik {round(pump_percent*100, 2)}% dari Dasar sejam terakhir. Rawan koreksi, Pause Buy.")
         return True
         
     return False
@@ -754,7 +773,6 @@ while True:
 
         free_usdt = get_balance_from_cache("USDT")
         min_notional = get_notion(PAIR)
-        max_allowed_buys = int(floor(data["config"]["budget_usd"] / data["config"]["buy_amount"]))
 
         if avg_price > 0:
            target_price = avg_price * (1 - get_dynamic_drop_threshold())
