@@ -48,8 +48,8 @@ def _load_env_file():
 _load_env_file()
 
 # ============ CONFIG ============
-API_KEY = os.getenv('BINANCE_API_KEY', '')
-API_SECRET = os.getenv('BINANCE_API_SECRET', '')
+API_KEY = os.getenv('BINANCE_API_KEY') or os.getenv('API_KEY', '')
+API_SECRET = os.getenv('BINANCE_API_SECRET') or os.getenv('API_SECRET', '')
 
 # ============ SIMPLE AUTH CONFIG ============
 AUTH_USERNAME = os.getenv('AUTH_USERNAME', 'admin')
@@ -1280,8 +1280,20 @@ def get_account_cached(force=False):
         ACCOUNT_CACHE['ts'] = time.time()
         return acc
     except Exception as e:
-        if DEBUG:
-            print("ERROR get_account_cached:", e)
+        err_msg = str(e)
+        if '-1021' in err_msg or 'Timestamp' in err_msg or 'recvWindow' in err_msg:
+            try:
+                server_time = client.get_server_time()
+                time_offset = server_time['serverTime'] - int(time.time() * 1000)
+                client.timestamp_offset = time_offset
+                acc = client.get_account()
+                ACCOUNT_CACHE['account'] = acc
+                ACCOUNT_CACHE['balances'] = acc.get('balances', [])
+                ACCOUNT_CACHE['ts'] = time.time()
+                return acc
+            except Exception as e2:
+                print(f"[API ERROR] Time sync recovery failed: {e2}")
+        print(f"[API ERROR] get_account_cached failed: {e}")
         return ACCOUNT_CACHE['account']  # bisa None
 
 def get_balance_from_cache(asset):
