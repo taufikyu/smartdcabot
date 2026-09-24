@@ -438,7 +438,7 @@ def get_analytics_data():
     seen_transactions = set()
     
     log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) 
-                 if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', 'copy', 'rescuepair', 'recycle_test', 'testusdt'])]
+                 if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', '(2)', 'copy', 'rescuepair', 'recycle_test', 'testusdt', 'compusdt', 'tstusdt', 'testpair'])]
     if not log_files:
         main_log = os.path.join(BASE_DIR, "trade_log.txt")
         if os.path.exists(main_log): log_files = [main_log]
