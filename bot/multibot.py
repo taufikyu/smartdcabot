@@ -14,14 +14,38 @@ getcontext().prec = 18
 from datetime import datetime
 
 # Load environment variables from .env file if present
-try:
-    from dotenv import load_dotenv
-    _curr_dir = os.path.dirname(os.path.abspath(__file__))
-    load_dotenv(os.path.join(_curr_dir, '.env'))
-    load_dotenv(os.path.join(os.path.dirname(_curr_dir), '.env'))
-    load_dotenv()
-except ImportError:
-    pass
+def _load_env_file():
+    try:
+        from dotenv import load_dotenv
+        _curr = os.path.dirname(os.path.abspath(__file__))
+        load_dotenv(os.path.join(_curr, '.env'))
+        load_dotenv(os.path.join(os.path.dirname(_curr), '.env'))
+        load_dotenv()
+    except Exception:
+        pass
+    # Fallback native parsing if keys still missing
+    if not os.getenv('BINANCE_API_KEY'):
+        _candidates = [
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'),
+            '.env'
+        ]
+        for c in _candidates:
+            if os.path.exists(c):
+                try:
+                    with open(c, 'r', encoding='utf-8') as ef:
+                        for line in ef:
+                            line = line.strip()
+                            if line and not line.startswith('#') and '=' in line:
+                                k, v = line.split('=', 1)
+                                k = k.strip()
+                                v = v.strip().strip('"').strip("'")
+                                if k and not os.environ.get(k):
+                                    os.environ[k] = v
+                except Exception:
+                    pass
+
+_load_env_file()
 
 # ============ CONFIG ============
 API_KEY = os.getenv('BINANCE_API_KEY', '')
