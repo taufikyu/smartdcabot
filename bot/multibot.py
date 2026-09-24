@@ -432,8 +432,10 @@ def get_analytics_data():
     """Membaca dan memparsing seluruh file log transaksi untuk analitik profit kalender & pelacak modal."""
     all_sells = []
     daily_summary = {}
+    seen_transactions = set()
     
-    log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) if 'backup' not in os.path.basename(f).lower()]
+    log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) 
+                 if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', 'copy', 'rescuepair', 'recycle_test', 'testusdt'])]
     if not log_files:
         main_log = os.path.join(BASE_DIR, "trade_log.txt")
         if os.path.exists(main_log): log_files = [main_log]
@@ -468,6 +470,11 @@ def get_analytics_data():
                         p_qty = float(match.group(5))
                         p_profit = float(match.group(6))
                         p_msg = (match.group(7) or '').strip() if match.lastindex >= 7 else ''
+                        
+                        tx_key = (dt_date, dt_time, pair_from_file, round(p_price, 8), round(p_qty, 8))
+                        if tx_key in seen_transactions:
+                            continue
+                        seen_transactions.add(tx_key)
                         
                         total_realized_profit += p_profit
                         total_trades_count += 1
