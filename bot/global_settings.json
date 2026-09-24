@@ -1,0 +1,12 @@
+{
+    "auto_pilot": true,
+    "auto_pilot_idle_rotation": true,
+    "auto_pilot_idle_hours": 12.0,
+    "idle_cooldown_pairs": {},
+    "auto_compound": true,
+    "btc_guard": true,
+    "max_slots": 3,
+    "locked_pairs": [],
+    "auto_rescue": true,
+    "auto_rescue_days": 3.0
+}

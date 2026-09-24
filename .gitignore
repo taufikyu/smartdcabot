@@ -1,0 +1,99 @@
+# ==========================================
+# Antigravity & Agent Project Skills / Memory
+# ==========================================
+.agent/
+.gemini/
+GEMINI.md
+scratch/
+scratch_*.json
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.local
+.env.*
+!.env.example
+
+# ==========================================
+# Python Bytecode & Virtual Environments
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# ==========================================
+# Legacy Single Bot Artifacts
+# ==========================================
+bot.py
+botcmd.py
+bot.json
+bot.txt
+bot.html
+
+# ==========================================
+# Runtime Trading States & Caches
+# ==========================================
+bot_*.json
+bot_*.json.bak
+*.json.bak
+*.bak
+trade_log*.txt
+price_history*.txt
+min_notional_list.txt
+
+# ==========================================
+# Databases & Local Backups
+# ==========================================
+*.db
+*.sqlite3
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmp
+*.dump
+*.stackdump
+*.log
+
+# ==========================================
+# Temporary Screenshots & Media
+# ==========================================
+*.jpg
+*.JPG
+*.jpeg
+*.JPEG
+*.png
+*.PNG
+
+# ==========================================
+# IDE & Operating System Files
+# ==========================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
