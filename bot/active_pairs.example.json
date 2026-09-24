@@ -1,0 +1,32 @@
+{
+    "PAIRS": [
+        "DOGEUSDT",
+        "PEPEUSDT"
+    ],
+    "PAIRS_CONFIG": {
+        "DOGEUSDT": {
+            "BUDGET_USD": 15.0,
+            "BUY_AMOUNT": 2.1,
+            "DROP_THRESHOLD": 0.013,
+            "MAX_LOSS_PERCENT": -15.0,
+            "FEE_RATE": 0.001,
+            "TAKE_PROFIT_MARGIN": 0.008,
+            "TRAILING_MARGIN": 0.001,
+            "RSI_MAX_ENTRY": 48.0,
+            "DCA_MODE": "smart",
+            "STATUS": 1
+        },
+        "PEPEUSDT": {
+            "BUDGET_USD": 15.0,
+            "BUY_AMOUNT": 2.1,
+            "DROP_THRESHOLD": 0.013,
+            "MAX_LOSS_PERCENT": -15.0,
+            "FEE_RATE": 0.001,
+            "TAKE_PROFIT_MARGIN": 0.008,
+            "TRAILING_MARGIN": 0.001,
+            "RSI_MAX_ENTRY": 48.0,
+            "DCA_MODE": "smart",
+            "STATUS": 1
+        }
+    }
+}

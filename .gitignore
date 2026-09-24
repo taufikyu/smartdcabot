@@ -53,10 +53,10 @@ bot.txt
 bot.html
 
 # ==========================================
-# Runtime Trading States & Caches
+# Runtime Trading States, Configs & Caches
 # ==========================================
-bot_*.json
-bot_*.json.bak
+*.json
+!*.example.json
 *.json.bak
 *.bak
 trade_log*.txt

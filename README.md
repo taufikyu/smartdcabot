@@ -28,17 +28,17 @@ Smart DCA Bot adalah sistem trading cryptocurrency otomatis berbasis **Dollar-Co
 ```
 smartdcabot/
 ├── README.md               # Dokumentasi proyek
-├── .gitignore              # Pengabaian file runtime & sensitif
+├── .gitignore              # Pengabaian file runtime, database, log & data dinamis
 └── bot/                    # Source code trading bot & dashboard
     ├── multibot.py         # Engine utama multi-coin trading & Flask server
-    ├── active_pairs.json   # Konfigurasi pair koin aktif
-    ├── capital_config.json # Konfigurasi alokasi modal
-    ├── global_settings.json# Pengaturan global (Auto-Pilot, BTC Guard, Auto-Rescue)
     ├── templates/
     │   ├── index.html      # Web dashboard UI interaktif
     │   └── login.html      # Halaman autentikasi login
     ├── requirements.txt    # Dependensi Python
-    └── .env.example        # Template konfigurasi environment
+    ├── .env.example        # Template konfigurasi environment (bebas API key)
+    ├── active_pairs.example.json   # Template konfigurasi pair koin
+    ├── capital_config.example.json # Template alokasi modal
+    └── global_settings.example.json# Template pengaturan global (Auto-Pilot, BTC Guard, Auto-Rescue)
 ```
 
 ---
