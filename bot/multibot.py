@@ -16,7 +16,10 @@ from datetime import datetime
 # Load environment variables from .env file if present
 try:
     from dotenv import load_dotenv
-    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
+    _curr_dir = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(_curr_dir, '.env'))
+    load_dotenv(os.path.join(os.path.dirname(_curr_dir), '.env'))
+    load_dotenv()
 except ImportError:
     pass
 
