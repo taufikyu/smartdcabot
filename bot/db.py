@@ -512,6 +512,27 @@ def db_log_trade_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""
     conn.commit()
     conn.close()
 
+def db_get_pair_logs_formatted(pair, limit=20):
+    """Mengambil riwayat log teks formatted langsung dari SQLite trade_history."""
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+    SELECT trade_date, trade_time, action, price, qty, profit, message 
+    FROM trade_history 
+    WHERE pair = ? 
+    ORDER BY id DESC 
+    LIMIT ?
+    """, (pair, limit))
+    rows = c.fetchall()
+    conn.close()
+    if not rows:
+        return "Belum ada riwayat transaksi."
+    lines = []
+    for r in rows:
+        msg = f" | {r['message']}" if r['message'] else ""
+        lines.append(f"[{r['trade_date']} {r['trade_time']}] {r['action']} | Price: {r['price']} | Qty: {r['qty']} | Profit: {r['profit']}{msg}")
+    return "\n".join(lines)
+
 def db_log_price(pair, price):
     """Menyimpan history harga ke SQLite (auto-trim ke 48 entri terbaru per pair)."""
     now = datetime.now()

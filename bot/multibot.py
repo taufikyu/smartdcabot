@@ -102,13 +102,6 @@ db.init_db()
 def save_active_pairs():
     try:
         db.db_save_active_pairs(PAIRS, PAIRS_CONFIG)
-        # Keep json sync for external backup / inspection
-        data = {
-            "PAIRS": PAIRS,
-            "PAIRS_CONFIG": PAIRS_CONFIG
-        }
-        with open(ACTIVE_PAIRS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
     except Exception as e:
         print(f"Error saving active pairs: {e}")
 
@@ -201,11 +194,6 @@ def log_price_to_file(pair, price):
         db.db_log_price(pair, price)
     except Exception:
         pass
-    try:
-        with open(get_price_hist_file(pair), "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Price: {fmt(price)}\n")
-    except Exception:
-        pass
         
 _LOGGERS = {}
 def get_logger(pair):
@@ -213,19 +201,15 @@ def get_logger(pair):
         logger = logging.getLogger(pair)
         logger.setLevel(logging.INFO)
         formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        fh = logging.FileHandler(get_log_file(pair), encoding='utf-8')
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        if DEBUG:
-            ch = logging.StreamHandler()
-            ch.setFormatter(formatter)
-            logger.addHandler(ch)
+        ch = logging.StreamHandler()
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
         _LOGGERS[pair] = logger
     return _LOGGERS[pair]
 
 def log_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""):
     logger = get_logger(pair)
-    logger.info(f"{action} | Price: {fmt(price)} | Qty: {fmt(qty)} | Profit: {fmt(profit)} | {message}")
+    logger.info(f"[{pair}] {action} | Price: {fmt(price)} | Qty: {fmt(qty)} | Profit: {fmt(profit)} | {message}")
     try:
         db.db_log_trade_action(pair, action, price, qty, profit, message)
     except Exception as e:
@@ -390,10 +374,6 @@ def get_global_settings():
 def save_global_settings(s_dict):
     try:
         db.db_save_global_settings(s_dict)
-        # Keep json copy for backup inspection
-        path = os.path.join(BASE_DIR, "global_settings.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(s_dict, f, indent=4)
     except Exception as e:
         if DEBUG: print(f"Error save_global_settings: {e}")
     return s_dict
@@ -449,12 +429,7 @@ def get_capital_config():
 
 def save_capital_config(injected_amount):
     try:
-        res = db.db_save_capital_config(injected_amount)
-        # Keep json copy for backup inspection
-        path = os.path.join(BASE_DIR, "capital_config.json")
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(res, f, indent=4)
-        return res
+        return db.db_save_capital_config(injected_amount)
     except Exception as e:
         if DEBUG: print(f"Error save_capital_config: {e}")
         return {"injected_capital": float(injected_amount), "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
@@ -1259,13 +1234,6 @@ def save_data(pair, d):
             db.db_save_pair_state(pair, d)
         except Exception as e:
             if DEBUG: print(f"Error db_save_pair_state({pair}): {e}")
-        try:
-            with open(get_data_file(pair) + ".bak", 'w') as f:
-                json.dump(d, f, indent=4)
-            with open(get_data_file(pair), 'w') as f:
-                json.dump(d, f, indent=4)
-        except Exception as e:
-            if DEBUG: print(f"Error json dump save_data({pair}): {e}")
 
 def get_initial_peak_and_low(pair, cur_price=None):
     """
@@ -3153,9 +3121,7 @@ def index():
                     history_volatility_pct = round(((max_1h - min_1h) / min_1h) * 100, 3)
         
         try:
-            with open(get_log_file(pair), 'r') as f:
-                logs = f.readlines()[-20:]
-                logs = "".join(reversed(logs))
+            logs = db.db_get_pair_logs_formatted(pair, limit=20)
         except Exception:
             logs = "No logs yet."
 
@@ -3280,9 +3246,7 @@ def api_status_all():
         next_layer_str = get_next_layer_str(pair, data, price, avg_buy)
         
         try:
-            with open(get_log_file(pair), 'r') as f:
-                logs_list = f.readlines()[-20:]
-                logs_str = "".join(reversed(logs_list))
+            logs_str = db.db_get_pair_logs_formatted(pair, limit=20)
         except Exception:
             logs_str = "No logs yet."
         
