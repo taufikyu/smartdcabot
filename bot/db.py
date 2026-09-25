@@ -109,174 +109,199 @@ def init_db():
 
 def auto_migrate_from_files_if_needed():
     """
-    Jika database baru dibuat / kosong, otomatis mengimpor seluruh data dari
-    active_pairs.json, global_settings.json, capital_config.json, bot_*.json,
-    trade_log_*.txt, dan price_history_*.txt tanpa ada data yang hilang.
+    Jika database baru dibuat / kosong atau belum memiliki BUY actions,
+    otomatis mengimpor seluruh data dari active_pairs.json, global_settings.json,
+    capital_config.json, bot_*.json, trade_log_*.txt, atau bot.tar.gz / legacy backup.
     """
     conn = get_db_connection()
     c = conn.cursor()
     
-    # Cek apakah sudah pernah dimigrasi
-    c.execute("SELECT COUNT(*) FROM trade_history")
-    history_count = c.fetchone()[0]
+    # 1. Migrasi Global Settings jika belum ada
+    c.execute("SELECT COUNT(*) FROM global_settings")
+    if c.fetchone()[0] == 0:
+        g_file = os.path.join(BASE_DIR, "global_settings.json")
+        if os.path.exists(g_file):
+            try:
+                with open(g_file, "r", encoding="utf-8") as f:
+                    g_data = json.load(f)
+                    for k, v in g_data.items():
+                        c.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)", (k, json.dumps(v)))
+            except Exception:
+                pass
+
+    # 2. Migrasi Capital Config jika belum ada
+    c.execute("SELECT COUNT(*) FROM capital_tracker")
+    if c.fetchone()[0] == 0:
+        cap_file = os.path.join(BASE_DIR, "capital_config.json")
+        if os.path.exists(cap_file):
+            try:
+                with open(cap_file, "r", encoding="utf-8") as f:
+                    cap_data = json.load(f)
+                    inj = float(cap_data.get("injected_capital", 55.32))
+                    upd = str(cap_data.get("updated_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    c.execute("INSERT INTO capital_tracker (injected_capital, updated_at) VALUES (?, ?)", (inj, upd))
+            except Exception:
+                pass
+
+    # 3. Migrasi Active Pairs jika belum ada
     c.execute("SELECT COUNT(*) FROM pairs_config")
-    config_count = c.fetchone()[0]
+    if c.fetchone()[0] == 0:
+        act_file = os.path.join(BASE_DIR, "active_pairs.json")
+        if os.path.exists(act_file):
+            try:
+                with open(act_file, "r", encoding="utf-8") as f:
+                    act_data = json.load(f)
+                    pairs_active = set(act_data.get("PAIRS", []))
+                    pairs_cfg = act_data.get("PAIRS_CONFIG", {})
+                    for p, cfg in pairs_cfg.items():
+                        is_active = 1 if p in pairs_active else 0
+                        c.execute("""
+                        INSERT OR REPLACE INTO pairs_config 
+                        (pair, is_active, budget_usd, buy_amount, max_layer, drop_threshold, max_loss_percent, fee_rate, take_profit_margin, trailing_margin, rsi_max_entry, status, dca_mode, force_sell, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            p, is_active,
+                            float(cfg.get("BUDGET_USD", cfg.get("budget_usd", 15.0))),
+                            float(cfg.get("BUY_AMOUNT", cfg.get("buy_amount", 2.1))),
+                            int(cfg.get("MAX_LAYER", cfg.get("max_layer", 7))),
+                            float(cfg.get("DROP_THRESHOLD", cfg.get("drop_threshold", 0.01))),
+                            float(cfg.get("MAX_LOSS_PERCENT", cfg.get("max_loss_percent", -15.0))),
+                            float(cfg.get("FEE_RATE", cfg.get("fee_rate", 0.001))),
+                            float(cfg.get("TAKE_PROFIT_MARGIN", cfg.get("take_profit_margin", 0.008))),
+                            float(cfg.get("TRAILING_MARGIN", cfg.get("trailing_margin", 0.001))),
+                            float(cfg.get("RSI_MAX_ENTRY", cfg.get("rsi_max_entry", 48.0))),
+                            int(cfg.get("STATUS", cfg.get("status", 1))),
+                            str(cfg.get("DCA_MODE", cfg.get("dca_mode", "smart"))).lower(),
+                            1 if cfg.get("FORCE_SELL", cfg.get("force_sell", False)) else 0,
+                            int(time.time())
+                        ))
+            except Exception:
+                pass
+
+    # 4. Migrasi Bot Pair States & Open Layers jika kosong
+    c.execute("SELECT COUNT(*) FROM pair_states")
+    if c.fetchone()[0] == 0:
+        bot_json_files = glob.glob(os.path.join(BASE_DIR, "bot_*.json"))
+        for bfile in bot_json_files:
+            if bfile.endswith(".bak"):
+                continue
+            p_name = os.path.basename(bfile).replace("bot_", "").replace(".json", "")
+            if any(x in p_name.lower() for x in ['rescuepair', 'testusdt', 'compusdt', 'tstusdt']):
+                continue
+            try:
+                with open(bfile, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read().strip()
+                    if not content:
+                        continue
+                    b_data = json.loads(content)
+                    b_left = float(b_data.get("budget_left", 0.0))
+                    p_peak = float(b_data.get("peak_price", 0.0))
+                    p_low = float(b_data.get("lowest_price", 0.0))
+                    p_time = int(b_data.get("peak_time", time.time()))
+                    l_time = int(b_data.get("lowest_price_time", time.time()))
+                    last_buy = int(b_data.get("last_buy_time", 0))
+                    idle_s = int(b_data.get("idle_since", 0))
+                    p_repl = json.dumps(b_data.get("pending_replacement"))
+                    p_conf = json.dumps(b_data.get("pending_config"))
+                    r_conf = json.dumps(b_data.get("revert_config_after_sell"))
+                    c_json = json.dumps(b_data.get("config", {}))
+                    
+                    c.execute("""
+                    INSERT OR REPLACE INTO pair_states 
+                    (pair, budget_left, peak_price, lowest_price, peak_time, lowest_price_time, last_buy_time, idle_since, pending_replacement, pending_config, revert_config_after_sell, config_json, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (p_name, b_left, p_peak, p_low, p_time, l_time, last_buy, idle_s, p_repl, p_conf, r_conf, c_json, int(time.time())))
+                    
+                    buys = b_data.get("buys", [])
+                    c.execute("DELETE FROM open_layers WHERE pair = ?", (p_name,))
+                    for idx, b in enumerate(buys, start=1):
+                        pr = float(b.get("price", 0.0))
+                        qt = float(b.get("qty", 0.0))
+                        bt = int(b.get("time", time.time()))
+                        c.execute("""
+                        INSERT INTO open_layers (pair, layer_idx, price, qty, cost_usdt, buy_time)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """, (p_name, idx, pr, qt, pr * qt, bt))
+            except Exception:
+                pass
+
+    # 5. Migrasi Trade Logs (Termasuk BUY dan SELL lengkap)
+    c.execute("SELECT COUNT(*) FROM trade_history WHERE action = 'BUY'")
+    buy_count = c.fetchone()[0]
     
-    if history_count > 0 or config_count > 0:
-        conn.close()
-        return
+    if buy_count == 0:
+        action_pattern = re.compile(
+            r'\[(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\]\s+'
+            r'([A-Za-z0-9_ ]+?)\s+'
+            r'\|\s+Price:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
+            r'\|\s+Qty:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
+            r'\|\s+Profit:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)'
+            r'(?:\s+\|\s*(.*))?'
+        )
 
-    print("[SQLITE MIGRATION] Memulai auto-migrasi data dari file JSON & TXT ke SQLite...")
+        def _import_log_lines(lines, p_from_file):
+            cnt = 0
+            for line in lines:
+                m = action_pattern.search(line)
+                if m:
+                    d, t, act, pr, qt, prof = m.groups()[:6]
+                    p_val = float(prof)
+                    msg = (m.group(7) or '').strip() if m.lastindex >= 7 else ''
+                    key = (d, t, p_from_file, act.strip(), round(float(pr), 8), round(float(qt), 8))
+                    if key not in seen_tx:
+                        seen_tx.add(key)
+                        c.execute("""
+                        INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (d, t, p_from_file, act.strip(), float(pr), float(qt), p_val, msg, int(time.time())))
+                        cnt += 1
+            return cnt
 
-    # 1. Migrasi Global Settings
-    g_file = os.path.join(BASE_DIR, "global_settings.json")
-    if os.path.exists(g_file):
-        try:
-            with open(g_file, "r", encoding="utf-8") as f:
-                g_data = json.load(f)
-                for k, v in g_data.items():
-                    c.execute("INSERT OR REPLACE INTO global_settings (key, value) VALUES (?, ?)", (k, json.dumps(v)))
-            print(" -> Global settings berhasil dimigrasi.")
-        except Exception as e:
-            print(f" -> Error migrasi global settings: {e}")
+        seen_tx = set()
+        c.execute("SELECT trade_date, trade_time, pair, action, price, qty FROM trade_history")
+        for r in c.fetchall():
+            seen_tx.add((r[0], r[1], r[2], str(r[3]).strip(), round(float(r[4]), 8), round(float(r[5]), 8)))
 
-    # 2. Migrasi Capital Config
-    cap_file = os.path.join(BASE_DIR, "capital_config.json")
-    if os.path.exists(cap_file):
-        try:
-            with open(cap_file, "r", encoding="utf-8") as f:
-                cap_data = json.load(f)
-                inj = float(cap_data.get("injected_capital", 55.32))
-                upd = str(cap_data.get("updated_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-                c.execute("INSERT INTO capital_tracker (injected_capital, updated_at) VALUES (?, ?)", (inj, upd))
-            print(" -> Capital config berhasil dimigrasi.")
-        except Exception as e:
-            print(f" -> Error migrasi capital config: {e}")
+        # Cari file trade_log*.txt langsung
+        log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) 
+                     if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', '(2)', 'copy', 'rescuepair', 'recycle_test', 'testusdt', 'compusdt', 'tstusdt', 'testpair'])]
+        for lfile in log_files:
+            p_from_file = os.path.basename(lfile).replace("trade_log_", "").replace(".txt", "")
+            if p_from_file == "trade_log" or not p_from_file:
+                p_from_file = "DOGEUSDT"
+            try:
+                with open(lfile, "r", encoding="utf-8", errors="ignore") as f:
+                    _import_log_lines(f.readlines(), p_from_file)
+            except Exception:
+                pass
 
-    # 3. Migrasi Active Pairs & Configs
-    act_file = os.path.join(BASE_DIR, "active_pairs.json")
-    if os.path.exists(act_file):
-        try:
-            with open(act_file, "r", encoding="utf-8") as f:
-                act_data = json.load(f)
-                pairs_active = set(act_data.get("PAIRS", []))
-                pairs_cfg = act_data.get("PAIRS_CONFIG", {})
-                for p, cfg in pairs_cfg.items():
-                    is_active = 1 if p in pairs_active else 0
-                    c.execute("""
-                    INSERT OR REPLACE INTO pairs_config 
-                    (pair, is_active, budget_usd, buy_amount, max_layer, drop_threshold, max_loss_percent, fee_rate, take_profit_margin, trailing_margin, rsi_max_entry, status, dca_mode, force_sell, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        p, is_active,
-                        float(cfg.get("BUDGET_USD", cfg.get("budget_usd", 15.0))),
-                        float(cfg.get("BUY_AMOUNT", cfg.get("buy_amount", 2.1))),
-                        int(cfg.get("MAX_LAYER", cfg.get("max_layer", 7))),
-                        float(cfg.get("DROP_THRESHOLD", cfg.get("drop_threshold", 0.01))),
-                        float(cfg.get("MAX_LOSS_PERCENT", cfg.get("max_loss_percent", -15.0))),
-                        float(cfg.get("FEE_RATE", cfg.get("fee_rate", 0.001))),
-                        float(cfg.get("TAKE_PROFIT_MARGIN", cfg.get("take_profit_margin", 0.008))),
-                        float(cfg.get("TRAILING_MARGIN", cfg.get("trailing_margin", 0.001))),
-                        float(cfg.get("RSI_MAX_ENTRY", cfg.get("rsi_max_entry", 48.0))),
-                        int(cfg.get("STATUS", cfg.get("status", 1))),
-                        str(cfg.get("DCA_MODE", cfg.get("dca_mode", "smart"))).lower(),
-                        1 if cfg.get("FORCE_SELL", cfg.get("force_sell", False)) else 0,
-                        int(time.time())
-                    ))
-            print(" -> Active pairs config berhasil dimigrasi.")
-        except Exception as e:
-            print(f" -> Error migrasi active pairs: {e}")
-
-    # 4. Migrasi Bot Pair States & Open Layers
-    bot_json_files = glob.glob(os.path.join(BASE_DIR, "bot_*.json"))
-    for bfile in bot_json_files:
-        if bfile.endswith(".bak"):
-            continue
-        p_name = os.path.basename(bfile).replace("bot_", "").replace(".json", "")
-        if any(x in p_name.lower() for x in ['rescuepair', 'testusdt', 'compusdt', 'tstusdt']):
-            continue
-        try:
-            with open(bfile, "r", encoding="utf-8", errors="ignore") as f:
-                content = f.read().strip()
-                if not content:
-                    continue
-                b_data = json.loads(content)
-                b_left = float(b_data.get("budget_left", 0.0))
-                p_peak = float(b_data.get("peak_price", 0.0))
-                p_low = float(b_data.get("lowest_price", 0.0))
-                p_time = int(b_data.get("peak_time", time.time()))
-                l_time = int(b_data.get("lowest_price_time", time.time()))
-                last_buy = int(b_data.get("last_buy_time", 0))
-                idle_s = int(b_data.get("idle_since", 0))
-                p_repl = json.dumps(b_data.get("pending_replacement"))
-                p_conf = json.dumps(b_data.get("pending_config"))
-                r_conf = json.dumps(b_data.get("revert_config_after_sell"))
-                c_json = json.dumps(b_data.get("config", {}))
-                
-                c.execute("""
-                INSERT OR REPLACE INTO pair_states 
-                (pair, budget_left, peak_price, lowest_price, peak_time, lowest_price_time, last_buy_time, idle_since, pending_replacement, pending_config, revert_config_after_sell, config_json, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (p_name, b_left, p_peak, p_low, p_time, l_time, last_buy, idle_s, p_repl, p_conf, r_conf, c_json, int(time.time())))
-                
-                # Migrasi Buys
-                buys = b_data.get("buys", [])
-                c.execute("DELETE FROM open_layers WHERE pair = ?", (p_name,))
-                for idx, b in enumerate(buys, start=1):
-                    pr = float(b.get("price", 0.0))
-                    qt = float(b.get("qty", 0.0))
-                    bt = int(b.get("time", time.time()))
-                    c.execute("""
-                    INSERT INTO open_layers (pair, layer_idx, price, qty, cost_usdt, buy_time)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """, (p_name, idx, pr, qt, pr * qt, bt))
-        except Exception:
-            pass
-
-    # 5. Migrasi Trade Logs
-    sell_pattern = re.compile(
-        r'\[(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\]\s+'
-        r'(SELL|PARTIAL_TP|MANUAL_RECYCLE|FORCED_SELL_CUTLOSS|FORCE SELL|CUT LOSS|TAKE PROFIT)\s+'
-        r'\|\s+Price:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
-        r'\|\s+Qty:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
-        r'\|\s+Profit:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)'
-        r'(?:\s+\|\s*(.*))?'
-    )
-
-    log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) 
-                 if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', '(2)', 'copy', 'rescuepair', 'recycle_test', 'testusdt', 'compusdt', 'tstusdt', 'testpair'])]
-    if not log_files:
-        mlog = os.path.join(BASE_DIR, "trade_log.txt")
-        if os.path.exists(mlog): log_files = [mlog]
-
-    seen_tx = set()
-    trade_count = 0
-    for lfile in log_files:
-        p_from_file = os.path.basename(lfile).replace("trade_log_", "").replace(".txt", "")
-        if p_from_file == "trade_log" or not p_from_file:
-            p_from_file = "DOGEUSDT"
-        try:
-            with open(lfile, "r", encoding="utf-8", errors="ignore") as f:
-                for line in f:
-                    m = sell_pattern.search(line)
-                    if m:
-                        d, t, act, pr, qt, prof = m.groups()[:6]
-                        p_val = float(prof)
-                        msg = (m.group(7) or '').strip() if m.lastindex >= 7 else ''
-                        key = (d, t, p_from_file, round(float(pr), 8), round(float(qt), 8))
-                        if key not in seen_tx:
-                            seen_tx.add(key)
-                            c.execute("""
-                            INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (d, t, p_from_file, act, float(pr), float(qt), p_val, msg, int(time.time())))
-                            trade_count += 1
-        except Exception as ex:
-            print(f" -> Error reading log {lfile}: {ex}")
+        # Cari juga di dalam bot.tar.gz atau legacy_files_backup.tar.gz jika file txt sudah terhapus
+        tar_candidates = [
+            os.path.join(BASE_DIR, "legacy_files_backup.tar.gz"),
+            os.path.join(BASE_DIR, "bot.tar.gz"),
+            os.path.join(os.path.dirname(BASE_DIR), "bot.tar.gz")
+        ]
+        import tarfile
+        for tpath in tar_candidates:
+            if os.path.exists(tpath):
+                try:
+                    with tarfile.open(tpath, "r:*") as tar:
+                        for m in tar.getmembers():
+                            if "trade_log" in m.name and m.name.endswith(".txt"):
+                                p_from_file = os.path.basename(m.name).replace("trade_log_", "").replace(".txt", "")
+                                if p_from_file == "trade_log" or not p_from_file:
+                                    p_from_file = "DOGEUSDT"
+                                if any(x in p_from_file.lower() for x in ['backup', '(1)', '(2)', 'copy', 'rescuepair', 'recycle_test', 'testusdt', 'compusdt', 'tstusdt', 'testpair']):
+                                    continue
+                                f = tar.extractfile(m)
+                                if f:
+                                    lines = [l.decode('utf-8', 'ignore').strip() for l in f.readlines()]
+                                    _import_log_lines(lines, p_from_file)
+                except Exception:
+                    pass
 
     conn.commit()
     conn.close()
-    print(f"[SQLITE MIGRATION] SUKSES! {trade_count} transaksi dan semua koin berhasil dipindahkan ke bot_trading.db!")
 
 # ============ DB CRUD HELPERS ============
 
@@ -556,20 +581,25 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
     conn = get_db_connection()
     c = conn.cursor()
     
+    REALIZED_FILTER = """
+    action IN ('SELL', 'PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS', 'FORCE SELL', 'CUT LOSS', 'TAKE PROFIT')
+    OR (action NOT IN ('BUY', 'PREBUY', 'CONFIG_APPLIED', 'AUTO_RESCUE', 'AUTOPILOT_START', 'SWAP') AND profit != 0)
+    """
+    
     # 1. Total Realized Profit & Trades
-    c.execute("SELECT COUNT(*), COALESCE(SUM(profit), 0.0) FROM trade_history")
+    c.execute(f"SELECT COUNT(*), COALESCE(SUM(profit), 0.0) FROM trade_history WHERE {REALIZED_FILTER}")
     row_tot = c.fetchone()
     total_trades = row_tot[0]
     total_realized_profit = round(row_tot[1], 4)
     
     # 2. Today Profit
     today_str = datetime.now().strftime("%Y-%m-%d")
-    c.execute("SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date = ?", (today_str,))
+    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date = ? AND ({REALIZED_FILTER})", (today_str,))
     today_profit = round(c.fetchone()[0], 4)
     
     # 3. This Month Profit
     month_str = datetime.now().strftime("%Y-%m")
-    c.execute("SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date LIKE ?", (f"{month_str}%",))
+    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date LIKE ? AND ({REALIZED_FILTER})", (f"{month_str}%",))
     month_profit = round(c.fetchone()[0], 4)
     
     # 4. Monthly Breakdown
@@ -578,9 +608,10 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
         "05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
         "09": "September", "10": "Oktober", "11": "November", "12": "Desember"
     }
-    c.execute("""
+    c.execute(f"""
     SELECT substr(trade_date, 1, 7) as ym, COUNT(*), SUM(profit), GROUP_CONCAT(DISTINCT pair)
     FROM trade_history
+    WHERE {REALIZED_FILTER}
     GROUP BY ym
     ORDER BY ym DESC
     """)
@@ -603,9 +634,10 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
         })
         
     # 5. Daily Breakdown (30 hari terakhir)
-    c.execute("""
+    c.execute(f"""
     SELECT trade_date, COUNT(*), SUM(profit), GROUP_CONCAT(DISTINCT pair)
     FROM trade_history
+    WHERE {REALIZED_FILTER}
     GROUP BY trade_date
     ORDER BY trade_date DESC
     LIMIT 30
@@ -624,7 +656,7 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
             "pairs": pairs_set
         })
         
-    # 6. Recent Trades (50 transaksi terakhir)
+    # 6. Recent Trades (Semua transaksi termasuk BUY & SELL untuk log dan inspeksi)
     c.execute("""
     SELECT trade_date, trade_time, pair, action, price, qty, profit, message
     FROM trade_history
@@ -646,6 +678,29 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
             "message": r["message"] or ""
         })
         
+    # 7. Recent Sells (Khusus transaksi realisasi sell)
+    c.execute(f"""
+    SELECT trade_date, trade_time, pair, action, price, qty, profit, message
+    FROM trade_history
+    WHERE {REALIZED_FILTER}
+    ORDER BY id DESC
+    LIMIT 50
+    """)
+    s_rows = c.fetchall()
+    recent_sells = []
+    for r in s_rows:
+        recent_sells.append({
+            "date": r["trade_date"],
+            "time": r["trade_time"],
+            "datetime": f"{r['trade_date']} {r['trade_time']}",
+            "pair": r["pair"],
+            "action": r["action"],
+            "price": r["price"],
+            "qty": r["qty"],
+            "profit": round(r["profit"], 6),
+            "message": r["message"] or ""
+        })
+
     conn.close()
     
     # Capital tracker calculations
@@ -668,5 +723,5 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
         "daily_breakdown": daily_list,
         "monthly_breakdown": monthly_list,
         "recent_trades": recent_trades,
-        "recent_sells": recent_trades
+        "recent_sells": recent_sells
     }

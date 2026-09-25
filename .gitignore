@@ -6,6 +6,7 @@
 GEMINI.md
 scratch/
 scratch_*.json
+scratch_*.py
 
 # ==========================================
 # Environment Variables & Secrets
