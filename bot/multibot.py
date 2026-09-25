@@ -68,7 +68,7 @@ PAIRS_CONFIG = {
         "FEE_RATE": 0.001,
         "TAKE_PROFIT_MARGIN": 0.01,
         "TRAILING_MARGIN": 0.001,
-        "RSI_MAX_ENTRY": 48,
+        "RSI_MAX_ENTRY": 52,
         "STATUS": 1
     },
     "PEPEUSDT": {
@@ -79,7 +79,7 @@ PAIRS_CONFIG = {
         "FEE_RATE": 0.001,
         "TAKE_PROFIT_MARGIN": 0.01,
         "TRAILING_MARGIN": 0.001,
-        "RSI_MAX_ENTRY": 48,
+        "RSI_MAX_ENTRY": 52,
         "STATUS": 1
     }
 }
@@ -365,7 +365,7 @@ def get_global_settings():
         return {
             "auto_pilot": True,
             "auto_pilot_idle_rotation": True,
-            "auto_pilot_idle_hours": 12.0,
+            "auto_pilot_idle_hours": 3.0,
             "idle_cooldown_pairs": {},
             "auto_compound": False,
             "btc_guard": True,
@@ -557,8 +557,8 @@ def scan_market_candidates(min_volume_usd=1_000_000, max_notional=2.5, max_resul
                 continue
                 
             price_change_pct = float(t.get('priceChangePercent', 0))
-            # Momentum Sehat untuk DCA Osilasi: -7.0% s/d +5.0%
-            if not (-7.0 <= price_change_pct <= 5.0):
+            # Momentum Sehat untuk DCA Osilasi: -8.0% s/d +6.0%
+            if not (-8.0 <= price_change_pct <= 6.0):
                 continue
                 
             current_price = float(t.get('lastPrice', 0))
@@ -704,8 +704,15 @@ def scan_market_candidates(min_volume_usd=1_000_000, max_notional=2.5, max_resul
 def calculate_dca_drop_requirement(layer_count, drop_threshold=0.013, volatility=0.0):
     """
     Rumus Tunggal: Persentase penurunan harga yang dibutuhkan untuk serok layer ke-(layer_count).
-    Mendukung Dynamic Layer Stretching saat volatilitas tinggi (volatility > 0.12) atau layer dalam (>= 5).
-    Tersinkronisasi 100% antara Live Trading, Backtest Simulator, dan Auto-Pilot Evaluator.
+    Tiered Dynamic Drop:
+    - Layer 1 -> Layer 2 (layer_count <= 1): 0.006 (0.6% drop) -> Cepat menangkap osilasi mikro
+    - Layer 2 -> Layer 3 (layer_count == 2): 0.008 (0.8% drop)
+    - Layer 3 -> Layer 4 (layer_count == 3): 0.011 (1.1% drop)
+    - Layer 4 -> Layer 5 (layer_count == 4): 0.015 (1.5% drop) * stretch_mult
+    - Layer 5 -> Layer 6 (layer_count == 5): 0.018 (1.8% drop) * stretch_mult
+    - Layer 6 -> Layer 7 (layer_count == 6): 0.022 (2.2% drop) * stretch_mult
+    - Layer >= 7: (0.022 + (layer_count - 6) * 0.010) * base_scale * stretch_mult
+    Mendukung Dynamic Layer Stretching saat volatilitas tinggi (volatility > 0.12).
     """
     base_scale = max(0.003, float(drop_threshold)) / 0.013
     stretch_mult = 1.0
@@ -719,19 +726,19 @@ def calculate_dca_drop_requirement(layer_count, drop_threshold=0.013, volatility
         stretch_mult = 1.0
 
     if layer_count <= 1:
-        return 0.020 * base_scale
+        return 0.006 * base_scale
     elif layer_count == 2:
-        return 0.035 * base_scale
+        return 0.008 * base_scale
     elif layer_count == 3:
-        return 0.055 * base_scale
+        return 0.011 * base_scale
     elif layer_count == 4:
-        return 0.080 * base_scale * stretch_mult
+        return 0.015 * base_scale * stretch_mult
     elif layer_count == 5:
-        return 0.125 * base_scale * stretch_mult
+        return 0.018 * base_scale * stretch_mult
     elif layer_count == 6:
-        return 0.185 * base_scale * stretch_mult
+        return 0.022 * base_scale * stretch_mult
     else:
-        return (0.185 + (layer_count - 6) * 0.075) * base_scale * stretch_mult
+        return (0.022 + (layer_count - 6) * 0.010) * base_scale * stretch_mult
 
 def calculate_dca_layer_amount(layer_idx, budget_usd, buy_amount=2.1, dca_mode="smart", min_notional=1.0):
     """
@@ -754,11 +761,25 @@ def calculate_dca_layer_amount(layer_idx, budget_usd, buy_amount=2.1, dca_mode="
 def calculate_dca_tp_target(avg_price, layer_count=1, take_profit_margin=0.008):
     """
     Rumus Tunggal: Target harga Take Profit berdasarkan harga rata-rata (AVG Buy),
-    margin TP dasar, dan eskalasi dinamis per kedalaman layer (+0.15% per layer).
+    margin TP dasar, dan eskalasi dinamis:
+    - Layer 1 (Quick-Scalp): +0.60% (take_profit_margin) -> Cepat panen di osilasi mikro
+    - Layer 2: +0.80%
+    - Layer 3: +1.00%
+    - Layer 4+: +1.20% + (+0.20% per layer berikutnya)
     """
     if avg_price <= 0:
         return 0.0
-    return avg_price * (1 + (float(take_profit_margin) + (int(layer_count) * 0.0015)))
+    layers = max(1, int(layer_count))
+    base_tp = float(take_profit_margin)
+    if layers == 1:
+        margin = min(base_tp, 0.0060) if base_tp <= 0.008 else base_tp
+    elif layers == 2:
+        margin = max(base_tp, 0.0080)
+    elif layers == 3:
+        margin = max(base_tp + 0.002, 0.0100)
+    else:
+        margin = max(base_tp + 0.004, 0.0120) + (layers - 4) * 0.0020
+    return avg_price * (1.0 + margin)
 
 def select_autopilot_candidate(current_pair=None, budget_usd=15.0, buy_amount=2.1, dca_mode="smart", drop_threshold=0.013, take_profit_margin=0.008):
     """

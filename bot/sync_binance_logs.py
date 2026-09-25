@@ -20,7 +20,7 @@ try:
     server_time = client.get_server_time()
     time_offset = server_time['serverTime'] - int(datetime.now().timestamp() * 1000)
     client.timestamp_offset = time_offset
-except:
+except Exception:
     pass
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

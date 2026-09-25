@@ -33,7 +33,7 @@ def init_db():
         fee_rate REAL DEFAULT 0.001,
         take_profit_margin REAL DEFAULT 0.008,
         trailing_margin REAL DEFAULT 0.001,
-        rsi_max_entry REAL DEFAULT 48.0,
+        rsi_max_entry REAL DEFAULT 52.0,
         status INTEGER DEFAULT 1,
         dca_mode TEXT DEFAULT 'smart',
         force_sell INTEGER DEFAULT 0,
@@ -376,7 +376,7 @@ def db_load_global_settings():
     settings = {
         "auto_pilot": True,
         "auto_pilot_idle_rotation": True,
-        "auto_pilot_idle_hours": 12.0,
+        "auto_pilot_idle_hours": 3.0,
         "idle_cooldown_pairs": {},
         "auto_compound": False,
         "btc_guard": True,
