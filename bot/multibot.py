@@ -200,11 +200,8 @@ def get_logger(pair):
     if pair not in _LOGGERS:
         logger = logging.getLogger(pair)
         logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        fh = logging.FileHandler(get_log_file(pair), encoding='utf-8')
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        if DEBUG:
+        if not logger.handlers:
+            formatter = logging.Formatter('[%(asctime)s] [%(name)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
             ch = logging.StreamHandler()
             ch.setFormatter(formatter)
             logger.addHandler(ch)
@@ -1348,15 +1345,6 @@ def load_data(pair):
         adjusted_budget = c_budget
         
     data_file = get_data_file(pair)
-    
-    # Auto-migration
-    if pair == "DOGEUSDT" and os.path.exists(os.path.join(BASE_DIR, "bot.json")) and not os.path.exists(data_file):
-        import shutil
-        shutil.move(os.path.join(BASE_DIR, "bot.json"), data_file)
-        if os.path.exists(os.path.join(BASE_DIR, "trade_log.txt")):
-            shutil.move(os.path.join(BASE_DIR, "trade_log.txt"), get_log_file(pair))
-        if os.path.exists(os.path.join(BASE_DIR, "price_history.txt")):
-            shutil.move(os.path.join(BASE_DIR, "price_history.txt"), get_price_hist_file(pair))
 
     if pair not in bot_locks:
         import threading
