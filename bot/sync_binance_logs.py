@@ -1,3 +1,5 @@
+import sqlite3
+import time
 from binance.client import Client
 from datetime import datetime
 import os
@@ -22,22 +24,35 @@ except:
     pass
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-pairs_to_sync = ["PEPEUSDT", "TUTUSDT", "DOGEUSDT"]
+DB_PATH = os.path.join(BASE_DIR, "bot_trading.db")
+
+conn = sqlite3.connect(DB_PATH)
+c = conn.cursor()
+
+pairs_to_sync = ["PEPEUSDT", "TUTUSDT", "NEIROUSDT", "DOGEUSDT"]
 
 for pair in pairs_to_sync:
-    print(f"Fetching trades for {pair}...")
+    print(f"Fetching trades for {pair} from Binance API...")
     try:
-        trades = client.get_my_trades(symbol=pair, limit=50)
+        trades = client.get_my_trades(symbol=pair, limit=100)
+        if not trades:
+            print(f"-> No recent trades found for {pair}.")
+            continue
+            
         trades.sort(key=lambda x: x['time'])
         
-        log_lines = []
+        c.execute("SELECT trade_date, trade_time, action, price, qty FROM trade_history WHERE pair = ?", (pair,))
+        seen_tx = set((r[0], r[1], str(r[2]).strip(), round(float(r[3]), 8), round(float(r[4]), 8)) for r in c.fetchall())
+        
         total_buy_qty = 0.0
         total_buy_cost = 0.0
         total_fee_usdt = 0.0
+        synced_count = 0
         
         for t in trades:
             dt = datetime.fromtimestamp(t['time'] / 1000)
-            date_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+            d_str = dt.strftime("%Y-%m-%d")
+            t_str = dt.strftime("%H:%M:%S")
             is_buy = t['isBuyer']
             action = "BUY" if is_buy else "SELL"
             price = float(t['price'])
@@ -48,31 +63,33 @@ for pair in pairs_to_sync:
             quote_qty = float(t.get('quoteQty', qty * price))
             fee_usdt = commission if commission_asset == 'USDT' else 0.0
             
-            profit = 0.0
             if is_buy:
                 total_buy_qty += qty
                 total_buy_cost += quote_qty
                 total_fee_usdt += fee_usdt
-                line = f"[{date_str}] {action} | Price: {price:.8f} | Qty: {int(qty) if qty > 100 else qty} | Profit: 0 | cost={quote_qty:.8f} USDT | fee={fee_str} | usable_quote=2.200000\n"
+                profit = 0.0
+                msg = f"cost={quote_qty:.8f} USDT | fee={fee_str}"
             else:
                 avg_buy_price = (total_buy_cost / total_buy_qty) if total_buy_qty > 0 else price
-                profit = (price - avg_buy_price) * qty - total_fee_usdt - fee_usdt
-                line = f"[{date_str}] {action} | Price: {price:.8f} | Qty: {int(qty) if qty > 100 else qty} | Profit: {max(0.0, profit):.8f} |\n"
+                profit = max(0.0, (price - avg_buy_price) * qty - total_fee_usdt - fee_usdt)
+                msg = f"fee={fee_str}"
                 total_buy_qty = 0.0
                 total_buy_cost = 0.0
                 total_fee_usdt = 0.0
             
-            log_lines.append(line)
-            
-        if log_lines:
-            target_file = os.path.join(BASE_DIR, f"trade_log_{pair}.txt")
-            with open(target_file, "w", encoding="utf-8") as f:
-                f.writelines(log_lines)
-            print(f"-> Saved {len(log_lines)} trades to {target_file}")
-        else:
-            print(f"-> No recent trades found for {pair}.")
-            
+            key = (d_str, t_str, action, round(price, 8), round(qty, 8))
+            if key not in seen_tx:
+                seen_tx.add(key)
+                c.execute("""
+                INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (d_str, t_str, pair, action, price, qty, profit, msg, int(time.time())))
+                synced_count += 1
+                
+        print(f"-> Synced {synced_count} new trades directly into SQLite bot_trading.db!")
     except Exception as e:
         print(f"Error fetching {pair}: {e}")
 
+conn.commit()
+conn.close()
 print("Sync completed successfully.")

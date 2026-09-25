@@ -4043,10 +4043,13 @@ def sync_trades_from_binance_api(target_pair=None):
     """
     Mengambil riwayat transaksi resmi dari Binance API (limit 100 per pair),
     merekonstruksi siklus akumulasi BUY dan Take Profit SELL lengkap dengan profit & fee,
-    lalu memperbarui file trade_log_{pair}.txt secara otomatis.
+    lalu memperbarui tabel SQLite trade_history secara otomatis tanpa file txt.
     """
     pairs_to_sync = [target_pair] if (target_pair and target_pair in PAIRS) else list(PAIRS)
     results = {}
+    
+    conn = db.get_db_connection()
+    c = conn.cursor()
     
     for pair in pairs_to_sync:
         try:
@@ -4056,14 +4059,19 @@ def sync_trades_from_binance_api(target_pair=None):
                 continue
             trades.sort(key=lambda x: x['time'])
             
-            log_lines = []
+            # Ambil key transaksi yang sudah ada di database untuk mencegah duplikasi
+            c.execute("SELECT trade_date, trade_time, action, price, qty FROM trade_history WHERE pair = ?", (pair,))
+            seen_tx = set((r[0], r[1], str(r[2]).strip(), round(float(r[3]), 8), round(float(r[4]), 8)) for r in c.fetchall())
+            
             total_buy_qty = 0.0
             total_buy_cost = 0.0
             total_fee_usdt = 0.0
+            synced_count = 0
             
             for t in trades:
                 dt = datetime.fromtimestamp(t['time'] / 1000)
-                date_str = dt.strftime("%Y-%m-%d %H:%M:%S")
+                d_str = dt.strftime("%Y-%m-%d")
+                t_str = dt.strftime("%H:%M:%S")
                 is_buy = t['isBuyer']
                 action = "BUY" if is_buy else "SELL"
                 price = float(t['price'])
@@ -4078,28 +4086,32 @@ def sync_trades_from_binance_api(target_pair=None):
                     total_buy_qty += qty
                     total_buy_cost += quote_qty
                     total_fee_usdt += fee_usdt
-                    line = f"[{date_str}] {action} | Price: {fmt(price)} | Qty: {int(qty) if qty > 100 else qty} | Profit: 0 | cost={quote_qty:.8f} USDT | fee={fee_str} | usable_quote={quote_qty:.6f}\n"
+                    profit = 0.0
+                    msg = f"cost={quote_qty:.8f} USDT | fee={fee_str} | usable_quote={quote_qty:.6f}"
                 else:
                     avg_buy_price = (total_buy_cost / total_buy_qty) if total_buy_qty > 0 else price
-                    profit = (price - avg_buy_price) * qty - total_fee_usdt - fee_usdt
-                    line = f"[{date_str}] {action} | Price: {fmt(price)} | Qty: {int(qty) if qty > 100 else qty} | Profit: {fmt(max(0.0, profit))} |\n"
+                    profit = max(0.0, (price - avg_buy_price) * qty - total_fee_usdt - fee_usdt)
+                    msg = f"fee={fee_str}"
                     total_buy_qty = 0.0
                     total_buy_cost = 0.0
                     total_fee_usdt = 0.0
                 
-                log_lines.append(line)
-                
-            if log_lines:
-                target_file = get_log_file(pair)
-                with open(target_file, "w", encoding="utf-8") as f:
-                    f.writelines(log_lines)
-                results[pair] = len(log_lines)
-            else:
-                results[pair] = 0
+                key = (d_str, t_str, action, round(price, 8), round(qty, 8))
+                if key not in seen_tx:
+                    seen_tx.add(key)
+                    c.execute("""
+                    INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (d_str, t_str, pair, action, price, qty, profit, msg, int(time.time())))
+                    synced_count += 1
+                    
+            results[pair] = synced_count
         except Exception as e:
             if DEBUG: print(f"Error syncing {pair}: {e}")
             results[pair] = -1
             
+    conn.commit()
+    conn.close()
     return results
 
 @app.route('/api/action/sync_trades', methods=['POST'])
