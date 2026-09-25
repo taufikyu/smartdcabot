@@ -92,29 +92,29 @@ PRICE_HIST = 48
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ACTIVE_PAIRS_FILE = os.path.join(BASE_DIR, "active_pairs.json")
 
+# Inisialisasi Database SQLite
+try:
+    import db
+except ImportError:
+    from bot import db
+db.init_db()
+
 def save_active_pairs():
     try:
-        data = {
-            "PAIRS": PAIRS,
-            "PAIRS_CONFIG": PAIRS_CONFIG
-        }
-        with open(ACTIVE_PAIRS_FILE, 'w') as f:
-            json.dump(data, f, indent=4)
+        db.db_save_active_pairs(PAIRS, PAIRS_CONFIG)
     except Exception as e:
         print(f"Error saving active pairs: {e}")
 
 def load_active_pairs():
     global PAIRS, PAIRS_CONFIG
-    if os.path.exists(ACTIVE_PAIRS_FILE):
-        try:
-            with open(ACTIVE_PAIRS_FILE, 'r') as f:
-                d = json.load(f)
-                if "PAIRS" in d and isinstance(d["PAIRS"], list) and len(d["PAIRS"]) > 0:
-                    PAIRS = d["PAIRS"]
-                if "PAIRS_CONFIG" in d and isinstance(d["PAIRS_CONFIG"], dict):
-                    PAIRS_CONFIG.update(d["PAIRS_CONFIG"])
-        except Exception as e:
-            print(f"Error loading active pairs: {e}")
+    try:
+        p_list, p_cfg = db.db_load_active_pairs()
+        if p_list:
+            PAIRS = p_list
+        if p_cfg:
+            PAIRS_CONFIG.update(p_cfg)
+    except Exception as e:
+        print(f"Error loading active pairs from db: {e}")
 
 load_active_pairs()
 
@@ -1382,10 +1382,10 @@ def save_data(pair, d):
         import threading
         bot_locks[pair] = threading.RLock()
     with bot_locks[pair]:
-        with open(get_data_file(pair) + ".bak", 'w') as f:
-            json.dump(d, f, indent=4)
-        with open(get_data_file(pair), 'w') as f:
-            json.dump(d, f, indent=4)
+        try:
+            db.db_save_pair_state(pair, d)
+        except Exception as e:
+            if DEBUG: print(f"Error db_save_pair_state({pair}): {e}")
 
 def get_initial_peak_and_low(pair, cur_price=None):
     """
@@ -1504,33 +1504,47 @@ def load_data(pair):
         is_buying[pair] = False
 
     with bot_locks[pair]:
-        if os.path.exists(data_file):
-            with open(data_file, 'r') as f:
-                d = json.load(f)
-            default_conf = {
-                "budget_usd": adjusted_budget,
-                "buy_amount": c_buy,
-                "max_layer": floor(adjusted_budget/c_buy) if c_buy else 0,
-                "drop_threshold": c_drop,
-                "max_loss_percent": c_loss,
-                "fee_rate": c_fee,
-                "take_profit_margin": c_tp,
-                "trailing_margin": c_trail,
-                "status": c_status,
-                "dca_mode": cfg.get("DCA_MODE", cfg.get("dca_mode", "flat")),
-                "rsi_max_entry": cfg.get("RSI_MAX_ENTRY", cfg.get("rsi_max_entry", 48.0)),
-                "peak_time": int(time.time()),
-                "force_sell": False
-            }
+        default_conf = {
+            "budget_usd": adjusted_budget,
+            "buy_amount": c_buy,
+            "max_layer": floor(adjusted_budget/c_buy) if c_buy else 0,
+            "drop_threshold": c_drop,
+            "max_loss_percent": c_loss,
+            "fee_rate": c_fee,
+            "take_profit_margin": c_tp,
+            "trailing_margin": c_trail,
+            "status": c_status,
+            "dca_mode": cfg.get("DCA_MODE", cfg.get("dca_mode", "smart")),
+            "rsi_max_entry": cfg.get("RSI_MAX_ENTRY", cfg.get("rsi_max_entry", 48.0)),
+            "peak_time": int(time.time()),
+            "force_sell": False
+        }
+        # 1. Load from DB first
+        d = None
+        try:
+            d = db.db_load_pair_state(pair, default_config=default_conf)
+        except Exception as e:
+            if DEBUG: print(f"Error db_load_pair_state({pair}): {e}")
+            d = None
+            
+        # 2. Fallback to JSON if SQLite was empty and JSON exists
+        if not d or (not d.get("buys") and (d.get("peak_price", 0) <= 0) and os.path.exists(data_file)):
+            try:
+                with open(data_file, 'r') as f:
+                    d = json.load(f)
+            except Exception:
+                pass
+
+        if d and ("config" in d or "buys" in d):
             if "config" not in d:
                 d["config"] = default_conf.copy()
             else:
                 # Update jika belum ada first buy (posisi kosong)
                 if len(d.get("buys", [])) == 0:
                     for k, v in default_conf.items():
-                        if k != "peak_time": # jangan timpa peak_time
+                        if k != "peak_time":
                             if k == "status" and d.get("pending_replacement"):
-                                continue # Biarkan status 0 (Sell Only) jika ada antrean swap
+                                continue
                             d["config"][k] = v
                 else:
                     # Jika sedang jalan (sudah buy), hanya isi key yang belum ada
@@ -1576,19 +1590,7 @@ def load_data(pair):
                 "lowest_price_time": int(time.time()),
                 "last_buy_time": 0,
                 "idle_since": int(time.time()),
-                "config": {
-                    "budget_usd": adjusted_budget,
-                    "buy_amount": c_buy,
-                    "max_layer": floor(adjusted_budget/c_buy) if c_buy else 0,
-                    "drop_threshold": c_drop,
-                    "max_loss_percent": c_loss,
-                    "fee_rate": c_fee,
-                    "take_profit_margin": c_tp,
-                    "trailing_margin": c_trail,
-                    "dca_mode": cfg.get("DCA_MODE", cfg.get("dca_mode", "flat")),
-                    "rsi_max_entry": cfg.get("RSI_MAX_ENTRY", cfg.get("rsi_max_entry", 48.0)),
-                    "status": c_status
-                }
+                "config": default_conf
             }
             bot_data[pair] = new_data
             save_data(pair, new_data)
