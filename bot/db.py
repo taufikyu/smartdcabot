@@ -82,6 +82,7 @@ def init_db():
     );
     CREATE INDEX IF NOT EXISTS idx_trade_history_pair ON trade_history(pair);
     CREATE INDEX IF NOT EXISTS idx_trade_history_date ON trade_history(trade_date);
+    CREATE INDEX IF NOT EXISTS idx_trade_history_pair_time ON trade_history(pair, trade_date, trade_time);
 
     CREATE TABLE IF NOT EXISTS global_settings (
         key TEXT PRIMARY KEY,
@@ -545,7 +546,7 @@ def db_get_pair_logs_formatted(pair, limit=20):
     SELECT trade_date, trade_time, action, price, qty, profit, message 
     FROM trade_history 
     WHERE pair = ? 
-    ORDER BY id DESC 
+    ORDER BY trade_date DESC, trade_time DESC, id DESC 
     LIMIT ?
     """, (pair, limit))
     rows = c.fetchall()
@@ -660,7 +661,7 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
     c.execute("""
     SELECT trade_date, trade_time, pair, action, price, qty, profit, message
     FROM trade_history
-    ORDER BY id DESC
+    ORDER BY trade_date DESC, trade_time DESC, id DESC
     LIMIT 50
     """)
     t_rows = c.fetchall()
@@ -683,7 +684,7 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
     SELECT trade_date, trade_time, pair, action, price, qty, profit, message
     FROM trade_history
     WHERE {REALIZED_FILTER}
-    ORDER BY id DESC
+    ORDER BY trade_date DESC, trade_time DESC, id DESC
     LIMIT 50
     """)
     s_rows = c.fetchall()
