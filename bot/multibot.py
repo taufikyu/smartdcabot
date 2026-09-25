@@ -4047,11 +4047,17 @@ def sync_trades_from_binance_api(target_pair=None):
     merekonstruksi siklus akumulasi BUY dan Take Profit SELL lengkap dengan profit & fee,
     lalu memperbarui tabel SQLite trade_history secara otomatis tanpa file txt.
     """
-    pairs_to_sync = [target_pair] if (target_pair and target_pair in PAIRS) else list(PAIRS)
-    results = {}
-    
     conn = db.get_db_connection()
     c = conn.cursor()
+
+    if target_pair:
+        pairs_to_sync = [target_pair]
+    else:
+        c.execute("SELECT DISTINCT pair FROM pairs_config UNION SELECT DISTINCT pair FROM trade_history")
+        known_pairs = [r[0] for r in c.fetchall() if r[0]]
+        pairs_to_sync = list(dict.fromkeys(list(PAIRS) + known_pairs + ["PEPEUSDT", "NEIROUSDT", "TUTUSDT", "DOGEUSDT"]))
+    
+    results = {}
     
     for pair in pairs_to_sync:
         try:

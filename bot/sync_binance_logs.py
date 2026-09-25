@@ -27,9 +27,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "bot_trading.db")
 
 conn = sqlite3.connect(DB_PATH)
-c = conn.cursor()
+try:
+    c.execute("SELECT DISTINCT pair FROM pairs_config UNION SELECT DISTINCT pair FROM trade_history")
+    known_pairs = [r[0] for r in c.fetchall() if r[0]]
+except Exception:
+    known_pairs = []
 
-pairs_to_sync = ["PEPEUSDT", "TUTUSDT", "NEIROUSDT", "DOGEUSDT"]
+pairs_to_sync = list(dict.fromkeys(["PEPEUSDT", "NEIROUSDT", "TUTUSDT", "DOGEUSDT"] + known_pairs))
 
 for pair in pairs_to_sync:
     print(f"Fetching trades for {pair} from Binance API...")
