@@ -190,8 +190,10 @@ def fmt(v):
     return f"{float(v):.8f}".rstrip('0').rstrip('.')
 
 def log_price_to_file(pair, price):
-    with open(get_price_hist_file(pair), "a") as f:
-        f.write(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Price: {fmt(price)}\n")
+    try:
+        db.db_log_price(pair, price)
+    except Exception as e:
+        if DEBUG: print(f"Error logging price to db: {e}")
         
 _LOGGERS = {}
 def get_logger(pair):
@@ -212,6 +214,10 @@ def get_logger(pair):
 def log_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""):
     logger = get_logger(pair)
     logger.info(f"{action} | Price: {fmt(price)} | Qty: {fmt(qty)} | Profit: {fmt(profit)} | {message}")
+    try:
+        db.db_log_trade_action(pair, action, price, qty, profit, message)
+    except Exception as e:
+        if DEBUG: print(f"Error logging trade to db: {e}")
 
 def format_buys_log(buys):
     if not buys:
@@ -352,41 +358,30 @@ def get_rsi(pair, interval='15m', period=14):
         return 50.0
 
 def get_global_settings():
-    path = os.path.join(BASE_DIR, "global_settings.json")
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                d = json.load(f)
-                d.setdefault("auto_pilot", True)
-                d.setdefault("auto_pilot_idle_rotation", True)
-                d.setdefault("auto_pilot_idle_hours", 12.0)
-                d.setdefault("idle_cooldown_pairs", {})
-                d.setdefault("auto_rescue", True)
-                d.setdefault("auto_rescue_days", 4)
-                d.setdefault("auto_rescue_tp", 0)
-                d.setdefault("btc_guard", True)
-                return d
-        except Exception:
-            pass
-    return {
-        "auto_pilot": True,
-        "auto_pilot_idle_rotation": True,
-        "auto_pilot_idle_hours": 12.0,
-        "idle_cooldown_pairs": {},
-        "auto_compound": False,
-        "btc_guard": True,
-        "auto_rescue": True,
-        "auto_rescue_days": 4,
-        "auto_rescue_tp": 0,
-        "max_slots": 3,
-        "locked_pairs": []
-    }
+    try:
+        return db.db_load_global_settings()
+    except Exception as e:
+        if DEBUG: print(f"Error db_load_global_settings: {e}")
+        return {
+            "auto_pilot": True,
+            "auto_pilot_idle_rotation": True,
+            "auto_pilot_idle_hours": 12.0,
+            "idle_cooldown_pairs": {},
+            "auto_compound": False,
+            "btc_guard": True,
+            "auto_rescue": True,
+            "auto_rescue_days": 4,
+            "auto_rescue_tp": 0,
+            "max_slots": 3,
+            "locked_pairs": []
+        }
 
 def save_global_settings(s_dict):
-    path = os.path.join(BASE_DIR, "global_settings.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(s_dict, f, indent=4)
-    return s_dict
+    try:
+        return db.db_save_global_settings(s_dict)
+    except Exception as e:
+        if DEBUG: print(f"Error db_save_global_settings: {e}")
+        return s_dict
 
 def record_idle_cooldown(pair):
     try:
@@ -432,188 +427,32 @@ def get_smart_pyramid_weights(budget_usd, min_notional=1.0):
 
 
 def get_capital_config():
-    path = os.path.join(BASE_DIR, "capital_config.json")
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"injected_capital": 20.0, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+    try:
+        return db.db_load_capital_config()
+    except Exception as e:
+        if DEBUG: print(f"Error db_load_capital_config: {e}")
+        return {"injected_capital": 20.0, "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 def save_capital_config(injected_amount):
-    path = os.path.join(BASE_DIR, "capital_config.json")
     try:
-        val = float(injected_amount)
-    except (ValueError, TypeError):
-        val = 20.0
-    data = {
-        "injected_capital": max(0.0, val),
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
-    return data
+        return db.db_save_capital_config(injected_amount)
+    except Exception as e:
+        if DEBUG: print(f"Error db_save_capital_config: {e}")
+        try:
+            val = float(injected_amount)
+        except (ValueError, TypeError):
+            val = 20.0
+        return {"injected_capital": max(0.0, val), "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 
 def get_analytics_data():
-    """Membaca dan memparsing seluruh file log transaksi untuk analitik profit kalender & pelacak modal."""
-    all_sells = []
-    daily_summary = {}
-    seen_transactions = set()
-    
-    log_files = [f for f in glob.glob(os.path.join(BASE_DIR, "trade_log_*.txt")) 
-                 if not any(x in os.path.basename(f).lower() for x in ['backup', '(1)', '(2)', 'copy', 'rescuepair', 'recycle_test', 'testusdt', 'compusdt', 'tstusdt', 'testpair'])]
-    if not log_files:
-        main_log = os.path.join(BASE_DIR, "trade_log.txt")
-        if os.path.exists(main_log): log_files = [main_log]
-        
-    total_realized_profit = 0.0
-    total_trades_count = 0
-    
-    sell_pattern = re.compile(
-        r'\[(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\]\s+'
-        r'(SELL|PARTIAL_TP|MANUAL_RECYCLE|FORCED_SELL_CUTLOSS|FORCE SELL|CUT LOSS|TAKE PROFIT)\s+'
-        r'\|\s+Price:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
-        r'\|\s+Qty:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)\s+'
-        r'\|\s+Profit:\s+([+\-]?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?)'
-        r'(?:\s+\|\s*(.*))?'
-    )
-    
-    for lfile in log_files:
-        pair_from_file = os.path.basename(lfile).replace("trade_log_", "").replace(".txt", "")
-        if pair_from_file == "trade_log" or not pair_from_file:
-            pair_from_file = "DOGEUSDT"
-            
-        try:
-            with open(lfile, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-                for line in lines:
-                    match = sell_pattern.search(line)
-                    if match:
-                        dt_date = match.group(1)
-                        dt_time = match.group(2)
-                        p_action = match.group(3)
-                        p_price = float(match.group(4))
-                        p_qty = float(match.group(5))
-                        p_profit = float(match.group(6))
-                        p_msg = (match.group(7) or '').strip() if match.lastindex >= 7 else ''
-                        
-                        tx_key = (dt_date, dt_time, pair_from_file, round(p_price, 8), round(p_qty, 8))
-                        if tx_key in seen_transactions:
-                            continue
-                        seen_transactions.add(tx_key)
-                        
-                        total_realized_profit += p_profit
-                        total_trades_count += 1
-                        
-                        if dt_date not in daily_summary:
-                            daily_summary[dt_date] = {
-                                'date': dt_date,
-                                'profit': 0.0,
-                                'trades': 0,
-                                'pairs': set()
-                            }
-                        daily_summary[dt_date]['profit'] += p_profit
-                        daily_summary[dt_date]['trades'] += 1
-                        daily_summary[dt_date]['pairs'].add(pair_from_file)
-                        
-                        all_sells.append({
-                            'date': dt_date,
-                            'time': dt_time,
-                            'datetime': f"{dt_date} {dt_time}",
-                            'pair': pair_from_file,
-                            'action': p_action,
-                            'price': p_price,
-                            'qty': p_qty,
-                            'profit': round(p_profit, 6),
-                            'message': p_msg
-                        })
-        except Exception as ex:
-            if DEBUG: print(f"Error reading log file {lfile}: {ex}")
-            
-    all_sells.sort(key=lambda x: x['datetime'], reverse=True)
-    
-    daily_list = []
-    today_str = datetime.now().strftime('%Y-%m-%d')
-    today_profit = 0.0
-    month_str = datetime.now().strftime('%Y-%m')
-    month_profit = 0.0
-    
-    MONTH_NAMES_ID = {
-        "01": "Januari", "02": "Februari", "03": "Maret", "04": "April",
-        "05": "Mei", "06": "Juni", "07": "Juli", "08": "Agustus",
-        "09": "September", "10": "Oktober", "11": "November", "12": "Desember"
-    }
-    
-    monthly_summary = {}
-    
-    for d_str in sorted(daily_summary.keys(), reverse=True):
-        entry = daily_summary[d_str]
-        p_val = round(entry['profit'], 4)
-        if d_str == today_str:
-            today_profit = p_val
-        if d_str.startswith(month_str):
-            month_profit += p_val
-            
-        m_key = d_str[:7]
-        if m_key not in monthly_summary:
-            monthly_summary[m_key] = {
-                'month': m_key,
-                'profit': 0.0,
-                'trades': 0,
-                'pairs': set()
-            }
-        monthly_summary[m_key]['profit'] += entry['profit']
-        monthly_summary[m_key]['trades'] += entry['trades']
-        monthly_summary[m_key]['pairs'].update(entry['pairs'])
-            
-        daily_list.append({
-            'date': d_str,
-            'profit': p_val,
-            'trades': entry['trades'],
-            'pairs': list(entry['pairs'])
-        })
-        
-    monthly_list = []
-    for m_str in sorted(monthly_summary.keys(), reverse=True):
-        m_entry = monthly_summary[m_str]
-        parts = m_str.split('-')
-        m_label = f"{MONTH_NAMES_ID.get(parts[1], parts[1])} {parts[0]}" if len(parts) == 2 else m_str
-        monthly_list.append({
-            'month': m_str,
-            'label': m_label,
-            'profit': round(m_entry['profit'], 4),
-            'trades': m_entry['trades'],
-            'pairs': list(m_entry['pairs']),
-            'avg_per_trade': round(m_entry['profit'] / m_entry['trades'], 4) if m_entry['trades'] > 0 else 0.0
-        })
-        
-    # Capital Tracker Calculations
+    """Membaca dan menghitung analitik profit kalender & pelacak modal langsung dari SQLite trade_history."""
     cap_data = get_capital_config()
     injected_capital = float(cap_data.get('injected_capital', 20.0))
     free_usdt, total_usd = get_total_usdt_value_cached()
-    
-    net_growth = total_usd - injected_capital
-    net_growth_pct = (net_growth / injected_capital * 100.0) if injected_capital > 0 else 0.0
-    
-    return {
-        'total_realized_profit': round(total_realized_profit, 4),
-        'total_trades': total_trades_count,
-        'today_profit': round(today_profit, 4),
-        'month_profit': round(month_profit, 4),
-        'win_rate': 100.0 if total_trades_count > 0 else 0.0,
-        'capital_tracker': {
-            'injected_capital': round(injected_capital, 4),
-            'current_equity': round(total_usd, 4),
-            'free_usdt': round(free_usdt, 4),
-            'net_growth': round(net_growth, 4),
-            'net_growth_pct': round(net_growth_pct, 2),
-            'updated_at': cap_data.get('updated_at', '')
-        },
-        'monthly_breakdown': monthly_list,
-        'daily_breakdown': daily_list,
-        'recent_sells': all_sells[:100]
-    }
+    data = db.db_get_analytics_data(injected_capital, free_usdt, total_usd)
+    if 'capital_tracker' in data and isinstance(data['capital_tracker'], dict):
+        data['capital_tracker']['updated_at'] = cap_data.get('updated_at', '')
+    return data
 
 # ============ SCANNER & BACKTEST ENGINE ============
 
@@ -3273,11 +3112,9 @@ def index():
                     history_volatility_pct = round(((max_1h - min_1h) / min_1h) * 100, 3)
         
         try:
-            with open(get_log_file(pair), 'r') as f:
-                logs = f.readlines()[-20:]
-                logs = "".join(reversed(logs))
+            logs = db.db_get_pair_logs_formatted(pair, limit=20)
         except Exception:
-            logs = "No logs yet."
+            logs = "Belum ada riwayat transaksi."
 
         total_cost = sum([float(b['qty']) * float(b['price']) for b in data.get('buys', [])]) if data.get('buys') else 0.0
         current_value = total_doge * price if avg_buy > 0 else 0.0
@@ -3400,11 +3237,9 @@ def api_status_all():
         next_layer_str = get_next_layer_str(pair, data, price, avg_buy)
         
         try:
-            with open(get_log_file(pair), 'r') as f:
-                logs_list = f.readlines()[-20:]
-                logs_str = "".join(reversed(logs_list))
+            logs_str = db.db_get_pair_logs_formatted(pair, limit=20)
         except Exception:
-            logs_str = "No logs yet."
+            logs_str = "Belum ada riwayat transaksi."
         
         buys_str = format_buys_log(data.get('buys', []))
         
