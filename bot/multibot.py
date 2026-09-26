@@ -209,10 +209,17 @@ def get_logger(pair):
     return _LOGGERS[pair]
 
 def log_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""):
-    logger = get_logger(pair)
-    logger.info(f"{action} | Price: {fmt(price)} | Qty: {fmt(qty)} | Profit: {fmt(profit)} | {message}")
+    if isinstance(profit, str) and not message:
+        message = profit
+        profit = 0.0
     try:
-        db.db_log_trade_action(pair, action, price, qty, profit, message)
+        profit_val = float(profit or 0.0)
+    except (ValueError, TypeError):
+        profit_val = 0.0
+    logger = get_logger(pair)
+    logger.info(f"{action} | Price: {fmt(price)} | Qty: {fmt(qty)} | Profit: {fmt(profit_val)} | {message}")
+    try:
+        db.db_log_trade_action(pair, action, price, qty, profit_val, message)
     except Exception as e:
         if DEBUG: print(f"Error logging trade to db: {e}")
 
@@ -2160,7 +2167,7 @@ def process_sell_fills_and_update_state(pair, data, fills, qty, current_price, a
                 PAIRS_CONFIG[pair]["MAX_LAYER"] = comp_layers
             save_active_pairs()
             save_data(pair, data)
-            log_action(pair, "COMPOUND", 0, 0, f"Auto-compounded +{added_profit} USDT into budget! New Budget: ${new_budget_cfg} USDT, Mode: {d_mode.upper()} ({comp_layers} Layers)")
+            log_action(pair, "COMPOUND", 0, 0, message=f"Auto-compounded +{added_profit} USDT into budget! New Budget: ${new_budget_cfg} USDT, Mode: {d_mode.upper()} ({comp_layers} Layers)")
     except Exception as e_comp:
         if DEBUG: print(f"[SELL] Error auto-compound: {e_comp}")
 
@@ -2197,7 +2204,7 @@ def process_sell_fills_and_update_state(pair, data, fills, qty, current_price, a
                     "rsi_max_entry": cfg.get("rsi_max_entry", 48.0),
                     "trailing_margin": cfg.get("trailing_margin", 0.001)
                 }
-                log_action(pair, "AUTOPILOT_TRIGGER", 0, 0, f"Auto-Pilot memilih koin juara {best_sym} berdasarkan evaluasi simulasi DCA 24 Jam!")
+                log_action(pair, "AUTOPILOT_TRIGGER", 0, 0, message=f"Auto-Pilot memilih koin juara {best_sym} berdasarkan evaluasi simulasi DCA 24 Jam!")
     except Exception as e_scan:
         if DEBUG: print(f"[DBG AutoPilot] Error scanning next coin: {e_scan}")
 
@@ -2286,11 +2293,11 @@ def execute_autopilot_swap(old_pair, new_pair, budget_usd=None, buy_amount=None,
         t.start()
         
         if reason == "IDLE_ROTATION":
-            log_action(old_pair, "SWAP_IDLE", 0, 0, f"Auto-swapped with {new_pair} setelah standby {idle_hours:.1f} jam tanpa sinyal Open Buy.")
-            log_action(new_pair, "AUTOPILOT_START", 0, 0, f"Memulai bot untuk {new_pair} (Auto-Pilot Idle Rotator menggantikan {old_pair}, mewarisi Config {final_mode.upper()} Drop:{final_drop*100}% TP:{final_tp*100}%)")
+            log_action(old_pair, "SWAP_IDLE", 0, 0, message=f"Auto-swapped with {new_pair} setelah standby {idle_hours:.1f} jam tanpa sinyal Open Buy.")
+            log_action(new_pair, "AUTOPILOT_START", 0, 0, message=f"Memulai bot untuk {new_pair} (Auto-Pilot Idle Rotator menggantikan {old_pair}, mewarisi Config {final_mode.upper()} Drop:{final_drop*100}% TP:{final_tp*100}%)")
         else:
-            log_action(old_pair, "SWAP", 0, 0, f"Auto-swapped with {new_pair} after successful Take Profit!")
-            log_action(new_pair, "AUTOPILOT_START", 0, 0, f"Memulai bot untuk {new_pair} (Auto-Pilot TP Rotator menggantikan {old_pair}, mewarisi Config {final_mode.upper()} Drop:{final_drop*100}% TP:{final_tp*100}%)")
+            log_action(old_pair, "SWAP", 0, 0, message=f"Auto-swapped with {new_pair} after successful Take Profit!")
+            log_action(new_pair, "AUTOPILOT_START", 0, 0, message=f"Memulai bot untuk {new_pair} (Auto-Pilot TP Rotator menggantikan {old_pair}, mewarisi Config {final_mode.upper()} Drop:{final_drop*100}% TP:{final_tp*100}%)")
         return True
     except Exception as e_swap:
         if DEBUG: print(f"Error execute_autopilot_swap: {e_swap}")
@@ -2703,7 +2710,7 @@ def execute_sell_last_layer(pair, is_manual=True):
                 save_active_pairs()
                 target_budget_display = new_b
                 
-            log_action(pair, "COMPOUND", avg_sell_price, actual_qty, profit=compounded_profit,
+            log_action(pair, "COMPOUND", avg_sell_price, actual_qty, profit=0.0,
                        message=f"Auto-compounded partial TP +${compounded_profit:.4f} USDT into {pair} budget! New Budget: ${target_budget_display:.2f}")
 
         # Auto-Revert Handling
@@ -2726,7 +2733,7 @@ def execute_sell_last_layer(pair, is_manual=True):
                     })
                 save_active_pairs()
                 reverted_budget_info = new_b
-                log_action(pair, "CONFIG_REVERTED", avg_sell_price, actual_qty, profit=net_profit,
+                log_action(pair, "CONFIG_REVERTED", avg_sell_price, actual_qty, profit=0.0,
                            message=f"Config otomatis dikembalikan ke settingan asal setelah jual Layer {recycled_num}! Budget: ${new_b:.2f}")
 
         # Jika seluruh layer telah terjual habis (posisi kosong), terapkan pending config atau eksekusi pending swap
@@ -3913,7 +3920,10 @@ def sync_trades_from_binance_api(target_pair=None):
             
             # Ambil key transaksi yang sudah ada di database untuk mencegah duplikasi
             c.execute("SELECT trade_date, trade_time, action, price, qty FROM trade_history WHERE pair = ?", (pair,))
-            seen_tx = set((r[0], r[1], str(r[2]).strip(), round(float(r[3]), 8), round(float(r[4]), 8)) for r in c.fetchall())
+            rows = c.fetchall()
+            seen_tx = set((r[0], r[1], str(r[2]).strip(), round(float(r[3]), 8), round(float(r[4]), 8)) for r in rows)
+            seen_sell_slots = set((r[0], r[1], round(float(r[3]), 6), round(float(r[4]), 4)) for r in rows if r[2] in ('SELL', 'PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS', 'FORCE SELL', 'CUT LOSS', 'TAKE PROFIT'))
+            seen_buy_slots = set((r[0], r[1], round(float(r[3]), 6), round(float(r[4]), 4)) for r in rows if r[2] in ('BUY', 'PREBUY'))
             
             total_buy_qty = 0.0
             total_buy_cost = 0.0
@@ -3949,8 +3959,15 @@ def sync_trades_from_binance_api(target_pair=None):
                     total_fee_usdt = 0.0
                 
                 key = (d_str, t_str, action, round(price, 8), round(qty, 8))
-                if key not in seen_tx:
+                slot_key = (d_str, t_str, round(price, 6), round(qty, 4))
+                is_already_logged = (key in seen_tx) or (not is_buy and slot_key in seen_sell_slots) or (is_buy and slot_key in seen_buy_slots)
+                
+                if not is_already_logged:
                     seen_tx.add(key)
+                    if is_buy:
+                        seen_buy_slots.add(slot_key)
+                    else:
+                        seen_sell_slots.add(slot_key)
                     c.execute("""
                     INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -3964,6 +3981,10 @@ def sync_trades_from_binance_api(target_pair=None):
             
     conn.commit()
     conn.close()
+    try:
+        db.db_cleanup_duplicate_trades()
+    except Exception:
+        pass
     return results
 
 @app.route('/api/action/sync_trades', methods=['POST'])

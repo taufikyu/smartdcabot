@@ -107,6 +107,55 @@ def init_db():
     conn.commit()
     conn.close()
     auto_migrate_from_files_if_needed()
+    db_cleanup_duplicate_trades()
+
+def db_cleanup_duplicate_trades():
+    """
+    Membersihkan dan merapikan trade_history di database SQLite:
+    1. Memastikan aksi event/non-trade (COMPOUND, CONFIG_REVERTED, CONFIG_APPLIED, dsb) memiliki profit = 0.0
+    2. Menghapus log SELL generik jika sudah ada log PARTIAL_TP / MANUAL_RECYCLE pada detik & harga yang sama
+    3. Menghapus baris duplikat identik
+    """
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        
+        # 1. Reset profit untuk aksi internal non-realisasi
+        c.execute("""
+        UPDATE trade_history 
+        SET profit = 0.0 
+        WHERE action IN ('COMPOUND', 'CONFIG_REVERTED', 'CONFIG_APPLIED', 'AUTO_RESCUE', 
+                         'AUTOPILOT_START', 'AUTOPILOT_TRIGGER', 'SWAP', 'PREBUY', 'AUTO_REVERT')
+          AND profit != 0.0
+        """)
+        
+        # 2. Hapus SELL duplikat dari API Binance jika PARTIAL_TP / MANUAL_RECYCLE sudah tercatat
+        c.execute("""
+        DELETE FROM trade_history 
+        WHERE action = 'SELL' 
+        AND EXISTS (
+            SELECT 1 FROM trade_history t2 
+            WHERE t2.pair = trade_history.pair 
+            AND t2.trade_date = trade_history.trade_date 
+            AND t2.trade_time = trade_history.trade_time 
+            AND t2.action IN ('PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS')
+        )
+        """)
+        
+        # 3. Hapus duplikasi baris identik (keep min id)
+        c.execute("""
+        DELETE FROM trade_history 
+        WHERE id NOT IN (
+            SELECT MIN(id) 
+            FROM trade_history 
+            GROUP BY trade_date, trade_time, pair, action, price, qty
+        )
+        """)
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error in db_cleanup_duplicate_trades: {e}")
 
 def auto_migrate_from_files_if_needed():
     """
@@ -526,6 +575,13 @@ def db_save_pair_state(pair, data):
 
 def db_log_trade_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""):
     """Menyimpan aksi trading (BUY, SELL, CUT_LOSS) ke SQLite trade_history."""
+    if isinstance(profit, str) and not message:
+        message = profit
+        profit = 0.0
+    try:
+        profit_val = float(profit or 0.0)
+    except (ValueError, TypeError):
+        profit_val = 0.0
     now = datetime.now()
     d_str = now.strftime("%Y-%m-%d")
     t_str = now.strftime("%H:%M:%S")
@@ -534,7 +590,7 @@ def db_log_trade_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""
     c.execute("""
     INSERT INTO trade_history (trade_date, trade_time, pair, action, price, qty, profit, message, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (d_str, t_str, pair, action, float(price), float(qty), float(profit), message, int(time.time())))
+    """, (d_str, t_str, pair, action, float(price or 0.0), float(qty or 0.0), profit_val, str(message or ""), int(time.time())))
     conn.commit()
     conn.close()
 
@@ -584,7 +640,6 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
     
     REALIZED_FILTER = """
     action IN ('SELL', 'PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS', 'FORCE SELL', 'CUT LOSS', 'TAKE PROFIT')
-    OR (action NOT IN ('BUY', 'PREBUY', 'CONFIG_APPLIED', 'AUTO_RESCUE', 'AUTOPILOT_START', 'SWAP') AND profit != 0)
     """
     
     # 1. Total Realized Profit & Trades
