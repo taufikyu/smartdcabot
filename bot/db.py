@@ -781,3 +781,108 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
         "recent_trades": recent_trades,
         "recent_sells": recent_sells
     }
+
+def db_get_traded_coins_summary():
+    """
+    Mengambil rekapitulasi seluruh koin yang pernah ditrade dari trade_history SQLite:
+    - Simbol Pair & Koin
+    - Total transaksi (Buy, Sell/TP, Recycle)
+    - Total Realized Profit (USDT)
+    - Waktu transaksi pertama & terakhir
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    
+    REALIZED_FILTER = "action IN ('SELL', 'PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS', 'FORCE SELL', 'CUT LOSS', 'TAKE PROFIT')"
+    
+    c.execute(f"""
+    SELECT 
+        pair,
+        COUNT(*) as total_records,
+        SUM(CASE WHEN action IN ('BUY', 'PREBUY') THEN 1 ELSE 0 END) as buy_count,
+        SUM(CASE WHEN {REALIZED_FILTER} THEN 1 ELSE 0 END) as sell_count,
+        COALESCE(SUM(profit), 0.0) as total_profit,
+        MIN(trade_date || ' ' || trade_time) as first_trade,
+        MAX(trade_date || ' ' || trade_time) as last_trade
+    FROM trade_history
+    GROUP BY pair
+    ORDER BY last_trade DESC, total_profit DESC
+    """)
+    rows = c.fetchall()
+    conn.close()
+    
+    results = []
+    for r in rows:
+        p = r["pair"]
+        if not p:
+            continue
+        results.append({
+            "pair": p,
+            "coin_name": p.replace("USDT", ""),
+            "total_records": int(r["total_records"] or 0),
+            "buy_count": int(r["buy_count"] or 0),
+            "sell_count": int(r["sell_count"] or 0),
+            "total_profit": round(float(r["total_profit"] or 0.0), 4),
+            "first_trade": str(r["first_trade"] or "-"),
+            "last_trade": str(r["last_trade"] or "-")
+        })
+    return results
+
+def db_get_pair_trade_history(pair, limit=500):
+    """
+    Mengambil riwayat transaksi kronologis lengkap khusus untuk 1 koin (pair).
+    Menghitung metrik total profit, jumlah buy, dan jumlah TP koin tersebut.
+    """
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+    SELECT id, trade_date, trade_time, pair, action, price, qty, profit, message, created_at
+    FROM trade_history
+    WHERE pair = ?
+    ORDER BY trade_date DESC, trade_time DESC, id DESC
+    LIMIT ?
+    """, (pair, limit))
+    rows = c.fetchall()
+    conn.close()
+    
+    trades = []
+    total_profit = 0.0
+    tp_count = 0
+    buy_count = 0
+    
+    for r in rows:
+        prof = round(float(r["profit"] or 0.0), 6)
+        act = str(r["action"]).strip()
+        pr = float(r["price"] or 0.0)
+        qt = float(r["qty"] or 0.0)
+        
+        if act in ('SELL', 'PARTIAL_TP', 'MANUAL_RECYCLE', 'FORCED_SELL_CUTLOSS', 'FORCE SELL', 'CUT LOSS', 'TAKE PROFIT'):
+            total_profit += prof
+            tp_count += 1
+        elif act in ('BUY', 'PREBUY'):
+            buy_count += 1
+            
+        trades.append({
+            "id": r["id"],
+            "date": r["trade_date"],
+            "time": r["trade_time"],
+            "datetime": f"{r['trade_date']} {r['trade_time']}",
+            "pair": r["pair"],
+            "action": act,
+            "price": pr,
+            "qty": qt,
+            "cost_usd": round(pr * qt, 4),
+            "profit": prof,
+            "message": r["message"] or ""
+        })
+        
+    return {
+        "pair": pair,
+        "coin_name": pair.replace("USDT", ""),
+        "total_trades": len(trades),
+        "buy_count": buy_count,
+        "tp_count": tp_count,
+        "total_profit": round(total_profit, 4),
+        "trades": trades
+    }
+

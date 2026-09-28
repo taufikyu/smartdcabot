@@ -3883,6 +3883,52 @@ def api_wallet_assets():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/api/wallet/traded_coins')
+def api_wallet_traded_coins():
+    try:
+        traded = db.db_get_traded_coins_summary()
+        # Enrich with current bot runtime state
+        for item in traded:
+            p = item['pair']
+            item['is_active_bot'] = (p in PAIRS)
+            p_data = bot_data.get(p, {})
+            item['layers_count'] = len(p_data.get('buys', []))
+            item['budget_usd'] = float(p_data.get('config', {}).get('budget_usd', p_data.get('config', {}).get('BUDGET_USD', 15.0)))
+            item['budget_left'] = float(p_data.get('budget_left', item['budget_usd']))
+            
+        return jsonify({
+            "success": True,
+            "traded_coins": traded
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route('/api/trade_history_by_pair')
+def api_trade_history_by_pair():
+    try:
+        pair = request.args.get('pair', '').upper().strip()
+        if not pair:
+            return jsonify({"success": False, "message": "Parameter pair harus diisi"}), 400
+        if not pair.endswith('USDT'):
+            pair += 'USDT'
+            
+        limit = int(request.args.get('limit', 500))
+        data = db.db_get_pair_trade_history(pair, limit=limit)
+        
+        # Tambahkan info status bot saat ini jika sedang aktif
+        p_data = bot_data.get(pair, {})
+        data['is_active_bot'] = (pair in PAIRS)
+        data['current_layers'] = len(p_data.get('buys', []))
+        data['current_price'] = get_ticker_price(pair) if (pair in PAIRS or p_data) else 0.0
+        
+        return jsonify({
+            "success": True,
+            "data": data
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route('/api/action/sell_bnb_to_usdt', methods=['POST'])
 def api_action_sell_bnb_to_usdt():
     try:
