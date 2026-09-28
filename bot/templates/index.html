@@ -3212,7 +3212,7 @@
     </div>
 
     <!-- MODAL DETAIL RIWAYAT TRANSAKSI KOIN -->
-    <div id="pair-history-modal" class="modal-overlay" style="display: none; z-index: 1050;">
+    <div id="pair-history-modal" class="modal-overlay" style="display: none; z-index: 10050;">
         <div class="modal-card" style="max-width: 880px; width: 95%; max-height: 90vh; display: flex; flex-direction: column;">
             <div class="modal-header">
                 <div style="display: flex; align-items: center; gap: 10px;">
@@ -5723,8 +5723,7 @@
 
                     var html = '';
                     data.traded_coins.forEach(function(item) {
-                        var isProfit = item.total_profit >= 0;
-                        var profColor = isProfit ? "var(--success, #10b981)" : "var(--danger, #ef4444)";
+                        var profColor = item.total_profit > 0 ? "var(--success, #10b981)" : (item.total_profit < 0 ? "var(--danger, #ef4444)" : "var(--text-sub)");
                         var profSign = item.total_profit > 0 ? "+" : "";
                         var formattedProfit = profSign + item.total_profit.toFixed(4) + " USDT";
 
@@ -5811,8 +5810,7 @@
             // Summary Stats
             var profEl = document.getElementById('phm-stat-profit');
             if (profEl) {
-                var isProfit = d.total_profit >= 0;
-                var profColor = isProfit ? "var(--success, #10b981)" : "var(--danger, #ef4444)";
+                var profColor = d.total_profit > 0 ? "var(--success, #10b981)" : (d.total_profit < 0 ? "var(--danger, #ef4444)" : "var(--text-main)");
                 var profSign = d.total_profit > 0 ? "+" : "";
                 profEl.style.color = profColor;
                 profEl.innerText = profSign + d.total_profit.toFixed(4) + " USDT";
@@ -5862,7 +5860,8 @@
             }
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--text-sub);">Tidak ada transaksi yang cocok dengan filter.</td></tr>';
+                var emptyMsg = trades.length === 0 ? "Belum ada riwayat transaksi tersimpan untuk koin ini." : "Tidak ada transaksi yang cocok dengan filter.";
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 25px; color: var(--text-sub);">' + emptyMsg + '</td></tr>';
                 return;
             }
 
@@ -5889,7 +5888,7 @@
                 if (isSell) {
                     var pVal = parseFloat(t.profit) || 0.0;
                     var pSign = pVal > 0 ? "+" : "";
-                    var pCol = pVal >= 0 ? "var(--success, #10b981)" : "var(--danger, #ef4444)";
+                    var pCol = pVal > 0 ? "var(--success, #10b981)" : (pVal < 0 ? "var(--danger, #ef4444)" : "var(--text-sub)");
                     profDisplay = '<span style="font-weight: 800; color: ' + pCol + ';">' + pSign + pVal.toFixed(4) + ' USDT</span>';
                 }
 

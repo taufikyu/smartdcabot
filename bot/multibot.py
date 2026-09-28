@@ -3887,14 +3887,33 @@ def api_wallet_assets():
 def api_wallet_traded_coins():
     try:
         traded = db.db_get_traded_coins_summary()
-        # Enrich with current bot runtime state
+        existing_pairs = set(item['pair'] for item in traded)
+        
+        # Sertakan koin aktif yang belum memiliki riwayat transaksi
+        for p in PAIRS:
+            if p not in existing_pairs:
+                traded.insert(0, {
+                    "pair": p,
+                    "coin_name": p.replace("USDT", ""),
+                    "total_records": 0,
+                    "buy_count": 0,
+                    "sell_count": 0,
+                    "total_profit": 0.0,
+                    "first_trade": "-",
+                    "last_trade": "-"
+                })
+                existing_pairs.add(p)
+
+        # Perkaya data dengan status runtime bot saat ini
         for item in traded:
             p = item['pair']
             item['is_active_bot'] = (p in PAIRS)
-            p_data = bot_data.get(p, {})
-            item['layers_count'] = len(p_data.get('buys', []))
-            item['budget_usd'] = float(p_data.get('config', {}).get('budget_usd', p_data.get('config', {}).get('BUDGET_USD', 15.0)))
-            item['budget_left'] = float(p_data.get('budget_left', item['budget_usd']))
+            p_data = bot_data.get(p, {}) if isinstance(bot_data.get(p), dict) else {}
+            cfg = p_data.get('config', {}) if isinstance(p_data.get('config'), dict) else {}
+            item['layers_count'] = len(p_data.get('buys', [])) if isinstance(p_data.get('buys'), list) else 0
+            b_usd = float(cfg.get('budget_usd', cfg.get('BUDGET_USD', 15.0)) or 15.0)
+            item['budget_usd'] = b_usd
+            item['budget_left'] = float(p_data.get('budget_left', b_usd) or b_usd)
             
         return jsonify({
             "success": True,
@@ -3916,10 +3935,14 @@ def api_trade_history_by_pair():
         data = db.db_get_pair_trade_history(pair, limit=limit)
         
         # Tambahkan info status bot saat ini jika sedang aktif
-        p_data = bot_data.get(pair, {})
+        p_data = bot_data.get(pair, {}) if isinstance(bot_data.get(pair), dict) else {}
         data['is_active_bot'] = (pair in PAIRS)
-        data['current_layers'] = len(p_data.get('buys', []))
-        data['current_price'] = get_ticker_price(pair) if (pair in PAIRS or p_data) else 0.0
+        data['current_layers'] = len(p_data.get('buys', [])) if isinstance(p_data.get('buys'), list) else 0
+        try:
+            cur_p = get_ticker_price(pair) if (pair in PAIRS or p_data) else 0.0
+        except Exception:
+            cur_p = 0.0
+        data['current_price'] = cur_p
         
         return jsonify({
             "success": True,

@@ -801,7 +801,7 @@ def db_get_traded_coins_summary():
         COUNT(*) as total_records,
         SUM(CASE WHEN action IN ('BUY', 'PREBUY') THEN 1 ELSE 0 END) as buy_count,
         SUM(CASE WHEN {REALIZED_FILTER} THEN 1 ELSE 0 END) as sell_count,
-        COALESCE(SUM(profit), 0.0) as total_profit,
+        COALESCE(SUM(CASE WHEN {REALIZED_FILTER} THEN profit ELSE 0.0 END), 0.0) as total_profit,
         MIN(trade_date || ' ' || trade_time) as first_trade,
         MAX(trade_date || ' ' || trade_time) as last_trade
     FROM trade_history
