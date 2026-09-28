@@ -709,13 +709,13 @@ def calculate_dca_drop_requirement(layer_count, drop_threshold=0.013, volatility
     """
     Rumus Tunggal: Persentase penurunan harga yang dibutuhkan untuk serok layer ke-(layer_count).
     Tiered Dynamic Drop:
-    - Layer 1 -> Layer 2 (layer_count <= 1): 0.006 (0.6% drop) -> Cepat menangkap osilasi mikro
-    - Layer 2 -> Layer 3 (layer_count == 2): 0.008 (0.8% drop)
-    - Layer 3 -> Layer 4 (layer_count == 3): 0.011 (1.1% drop)
-    - Layer 4 -> Layer 5 (layer_count == 4): 0.015 (1.5% drop) * stretch_mult
-    - Layer 5 -> Layer 6 (layer_count == 5): 0.018 (1.8% drop) * stretch_mult
-    - Layer 6 -> Layer 7 (layer_count == 6): 0.022 (2.2% drop) * stretch_mult
-    - Layer >= 7: (0.022 + (layer_count - 6) * 0.010) * base_scale * stretch_mult
+    - Layer 1 -> Layer 2 (layer_count <= 1): 0.012 (1.2% drop) -> Osilasi terukur
+    - Layer 2 -> Layer 3 (layer_count == 2): 0.018 (1.8% drop)
+    - Layer 3 -> Layer 4 (layer_count == 3): 0.025 (2.5% drop)
+    - Layer 4 -> Layer 5 (layer_count == 4): 0.035 (3.5% drop) * stretch_mult
+    - Layer 5 -> Layer 6 (layer_count == 5): 0.045 (4.5% drop) * stretch_mult
+    - Layer 6 -> Layer 7 (layer_count == 6): 0.060 (6.0% drop) * stretch_mult
+    - Layer >= 7: (0.060 + (layer_count - 6) * 0.015) * base_scale * stretch_mult
     Mendukung Dynamic Layer Stretching saat volatilitas tinggi (volatility > 0.12).
     """
     base_scale = max(0.003, float(drop_threshold)) / 0.013
@@ -730,19 +730,19 @@ def calculate_dca_drop_requirement(layer_count, drop_threshold=0.013, volatility
         stretch_mult = 1.0
 
     if layer_count <= 1:
-        return 0.006 * base_scale
+        return 0.012 * base_scale
     elif layer_count == 2:
-        return 0.008 * base_scale
+        return 0.018 * base_scale
     elif layer_count == 3:
-        return 0.011 * base_scale
+        return 0.025 * base_scale
     elif layer_count == 4:
-        return 0.015 * base_scale * stretch_mult
+        return 0.035 * base_scale * stretch_mult
     elif layer_count == 5:
-        return 0.018 * base_scale * stretch_mult
+        return 0.045 * base_scale * stretch_mult
     elif layer_count == 6:
-        return 0.022 * base_scale * stretch_mult
+        return 0.060 * base_scale * stretch_mult
     else:
-        return (0.022 + (layer_count - 6) * 0.010) * base_scale * stretch_mult
+        return (0.060 + (layer_count - 6) * 0.015) * base_scale * stretch_mult
 
 def calculate_dca_layer_amount(layer_idx, budget_usd, buy_amount=2.1, dca_mode="smart", min_notional=1.0):
     """
@@ -1053,8 +1053,9 @@ def run_dca_backtest(pair, days=30, budget_usd=15.0, buy_amount=2.1, take_profit
                 
                 layer_count = len(buys)
                 req_drop = get_sim_drop_req(layer_count)
-                target_drop_price = avg_price * (1 - req_drop)
-                
+                last_sim_buy_p = float(buys[-1]['price']) if buys else 0.0
+                target_drop_price = min(avg_price * (1 - req_drop), last_sim_buy_p * 0.990) if last_sim_buy_p > 0 else (avg_price * (1 - req_drop))
+
                 can_buy = (layer_count < max_sim_layers)
                 if is_autopilot:
                     can_buy = can_buy and (budget_left >= cur_needed)
@@ -1310,6 +1311,8 @@ def init_fresh_pair_data(pair, budget_usd, buy_amount, dca_mode="smart",
         "peak_time": now_ts,
         "lowest_price_time": now_ts,
         "last_buy_time": 0,
+        "last_recycle_price": 0.0,
+        "last_recycle_time": 0,
         "idle_since": now_ts,
         "pending_replacement": None,
         "config": {
@@ -1472,20 +1475,35 @@ def get_dynamic_drop_threshold(pair):
 def get_dynamic_cooldown_secs(pair):
     data = bot_data[pair]
 
-    peak = data['peak_price']
-    low = data['lowest_price']
+    peak = float(data.get('peak_price', 0.0) or 0.0)
+    low = float(data.get('lowest_price', 0.0) or 0.0)
 
     if peak <= 0 or low <= 0:
         return 60 * 60
 
     volatility = (peak - low) / peak
+    layer_count = len(data.get('buys', []))
 
-    base = 15 * 60
+    # Eskalasi interval cooldown antar layer:
+    # L1 -> L2: 15 menit
+    # L2 -> L3: 20 menit
+    # L3 -> L4: 30 menit
+    # L4 -> L5: 45 menit
+    # L5+: 60 menit
+    if layer_count <= 1:
+        base = 15 * 60
+    elif layer_count == 2:
+        base = 20 * 60
+    elif layer_count == 3:
+        base = 30 * 60
+    elif layer_count == 4:
+        base = 45 * 60
+    else:
+        base = 60 * 60
 
     if volatility > 0.20:
         return base * 4
-
-    if volatility > 0.10:
+    elif volatility > 0.10:
         return base * 2
 
     return base
@@ -1806,8 +1824,15 @@ def display_status(pair):
     drop_percent = ((data['peak_price'] - current_price) * 100) / data['peak_price']
     if avg_price > 0 and not is_fund_exhausted(pair):
         drop_req = get_dynamic_drop_threshold(pair)
-        next_target = avg_price * (1 - drop_req)
-        next_layer_str = f"{round(next_target, 5)} (-{round(drop_req * 100, 2)}% dari AVG)"
+        target_avg = avg_price * (1 - drop_req)
+        last_buy_p = float(data['buys'][-1]['price']) if len(data.get('buys', [])) > 0 else 0.0
+        target_last = last_buy_p * 0.99 if last_buy_p > 0 else target_avg
+        next_target = min(target_avg, target_last)
+        last_rec_p = float(data.get('last_recycle_price', 0.0) or 0.0)
+        last_rec_t = float(data.get('last_recycle_time', 0.0) or 0.0)
+        if last_rec_p > 0 and (time.time() - last_rec_t < 7200):
+            next_target = min(next_target, last_rec_p * 0.98)
+        next_layer_str = f"{fmt(next_target)} (Layer {len(data.get('buys', [])) + 1})"
     elif len(data['buys']) == 0:
         history = data.get('price_history', [])
         raw_prices = [p.get('price', 0) if isinstance(p, dict) else float(p) for p in history]
@@ -2024,6 +2049,8 @@ def process_ghost_trade_reset(pair, data, current_price):
     data["lowest_price"] = current_price
     data["peak_time"] = int(time.time())
     data["last_buy_time"] = 0
+    data["last_recycle_price"] = 0.0
+    data["last_recycle_time"] = 0
     data["idle_since"] = int(time.time())
     save_data(pair, data)
     bot_data[pair] = load_data(pair)
@@ -2095,6 +2122,8 @@ def process_sell_fills_and_update_state(pair, data, fills, qty, current_price, a
     data["lowest_price"] = avg_sell_price
     data["peak_time"] = int(time.time())
     data["last_buy_time"] = 0
+    data["last_recycle_price"] = 0.0
+    data["last_recycle_time"] = 0
     data["idle_since"] = int(time.time())
     save_data(pair, data)
 
@@ -2662,6 +2691,10 @@ def execute_sell_last_layer(pair, is_manual=True):
         recycled_num = len(buys)
         data['buys'].pop()
         
+        # Simpan jejak Post-Recycle Guard untuk layer yang baru dilepas
+        data['last_recycle_price'] = avg_sell_price
+        data['last_recycle_time'] = int(time.time())
+        
         cost_restored = float(last_layer.get("quote_spent") or cost)
         full_budget = float(data.get("config", {}).get("budget_usd", 15.0))
         data['budget_left'] = min(full_budget, round(float(data.get('budget_left', 0.0)) + cost_restored, 4))
@@ -2672,6 +2705,8 @@ def execute_sell_last_layer(pair, is_manual=True):
             data['peak_time'] = int(time.time())
             data['lowest_price_time'] = int(time.time())
             data['last_buy_time'] = 0
+            data['last_recycle_price'] = 0.0
+            data['last_recycle_time'] = 0
             data['idle_since'] = int(time.time())
         else:
             data['lowest_price'] = current_price
@@ -3010,7 +3045,14 @@ def get_next_layer_str(pair, data, price, avg_buy):
 
     if avg_buy > 0 and not is_fund_exhausted(pair):
         drop_req = get_dynamic_drop_threshold(pair)
-        next_target = avg_buy * (1 - drop_req)
+        target_avg = avg_buy * (1 - drop_req)
+        last_buy_p = float(data['buys'][-1]['price']) if len(data.get('buys', [])) > 0 else 0.0
+        target_last = last_buy_p * 0.99 if last_buy_p > 0 else target_avg
+        next_target = min(target_avg, target_last)
+        last_rec_p = float(data.get('last_recycle_price', 0.0) or 0.0)
+        last_rec_t = float(data.get('last_recycle_time', 0.0) or 0.0)
+        if last_rec_p > 0 and (time.time() - last_rec_t < 7200):
+            next_target = min(next_target, last_rec_p * 0.98)
         return "Layer {}: {} (-{}% dr AVG)".format(next_layer_num, fmt(next_target), round(drop_req * 100, 2))
     elif buys_count == 0:
         history = data.get('price_history', [])
@@ -4353,10 +4395,18 @@ def dca_loop(pair):
             max_allowed_buys = int(floor(data["config"]["budget_usd"] / data["config"]["buy_amount"]))
             
             if avg_price > 0:
-               target_price = avg_price * (1 - get_dynamic_drop_threshold(pair))
-               if current_price > target_price:
-                   if DEBUG:
-                       print(f"[DBG get_dynamic_drop_threshold BELUM CUKUP] current={current_price:.5f} target={target_price:.5f}")
+                target_drop_req = get_dynamic_drop_threshold(pair)
+                target_price = avg_price * (1 - target_drop_req)
+                if len(data.get('buys', [])) > 0:
+                    last_b_price = float(data['buys'][-1]['price'])
+                    target_price = min(target_price, last_b_price * 0.99)
+                last_rec_p = float(data.get('last_recycle_price', 0.0) or 0.0)
+                last_rec_t = float(data.get('last_recycle_time', 0.0) or 0.0)
+                if last_rec_p > 0 and (time.time() - last_rec_t < 7200):
+                    target_price = min(target_price, last_rec_p * 0.98)
+                if current_price > target_price:
+                    if DEBUG:
+                        print(f"[DBG Target Drop Belum Cukup] current={current_price:.5f} target={target_price:.5f}")
             if avg_price > 0:
                 total_doge = sum([b['qty'] for b in data['buys']])
                 fee_rate = data["config"]["fee_rate"]
@@ -4379,12 +4429,30 @@ def dca_loop(pair):
             #            print("[DBG] CUT LOSS, {}".format(current_price))
             #    sell_all(pair, CUT_LOSS=True)
             needed_buy_amt = get_adaptive_buy_amount(pair)
+            
+            # Anti-Layer Kembar & Anti-Cluster Guard (Dual-Reference Price Guard):
+            # Layer lanjutan wajib:
+            # 1. Turun sesuai rumus dynamic drop threshold dari AVG Buy
+            # 2. Turun minimal >= 1.0% dari harga serokan layer sebelumnya (last_buy_price)
+            last_buy_p = float(data['buys'][-1]['price']) if len(data.get('buys', [])) > 0 else 0.0
+            min_step_pct = 0.010  # Minimal 1.0% lebih murah dari layer sebelumnya
+            drop_from_last_buy = (last_buy_p <= 0.0 or current_price <= last_buy_p * (1.0 - min_step_pct))
+            
+            # Post-Recycle Guard:
+            # Jika layer sebelumnya baru saja di-recycle (Partial Take Profit / Scalping),
+            # cegah serok ulang jika belum 2 jam ATAU harga belum drop >= -2.0% di bawah harga jual recycle
+            last_rec_p = float(data.get('last_recycle_price', 0.0) or 0.0)
+            last_rec_t = float(data.get('last_recycle_time', 0.0) or 0.0)
+            post_recycle_ok = (last_rec_p <= 0.0 or (time.time() - last_rec_t >= 7200) or (current_price <= last_rec_p * 0.98))
+            
+            is_drop_satisfied = (avg_price == 0 or (current_price <= avg_price * (1 - get_dynamic_drop_threshold(pair)) and drop_from_last_buy and post_recycle_ok))
+            
             if not is_fund_exhausted(pair) \
                 and data['budget_left'] >= min(needed_buy_amt, 1.10)\
                 and free_usdt >= min_notional \
                 and needed_buy_amt >= min_notional \
                 and data["config"].get("status", 1) == 1 \
-                and (avg_price == 0 or current_price <= avg_price * (1 - get_dynamic_drop_threshold(pair))):
+                and is_drop_satisfied:
                     
                 if is_market_volatile(pair) and len(data['buys']) > 0:
                     if DEBUG:
