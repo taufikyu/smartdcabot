@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Smart DCA Trading Bot</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border: rgba(255, 255, 255, 0.1);
+            --text: #f8fafc;
+            --text-sub: #94a3b8;
+            --accent: #38bdf8;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(circle at 50% 10%, #1e293b 0%, #0f172a 100%);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.4s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .brand-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #0284c7, #2563eb);
+            border-radius: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            color: #fff;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+        }
+        .login-header h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+        .login-header p {
+            font-size: 13px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+        }
+        .input-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .input-wrap i {
+            position: absolute;
+            left: 14px;
+            color: var(--text-sub);
+            font-size: 15px;
+        }
+        .form-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px 12px 42px;
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .form-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        .btn-submit {
+            width: 100%;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            border: none;
+            border-radius: 12px;
+            padding: 13px;
+            font-size: 14px;
+            font-weight: 800;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+        }
+        .alert {
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .alert-danger { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .alert-success { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+        .alert-warning { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .alert-info { background: rgba(56, 189, 248, 0.15); color: #7dd3fc; border: 1px solid rgba(56, 189, 248, 0.3); }
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 13px;
+            color: var(--text-sub);
+        }
+        .auth-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="login-header">
+            <div class="brand-icon"><i class="fas fa-robot"></i></div>
+            <h1>Smart DCA Bot</h1>
+            <p>Masukkan kredensial untuk membuka dashboard</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <i class="fas fa-info-circle"></i> {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label>Username / Email</label>
+                <div class="input-wrap">
+                    <i class="fas fa-user"></i>
+                    <input type="text" name="username" class="form-input" placeholder="admin" required autofocus>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <div class="input-wrap">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" name="password" class="form-input" placeholder="••••••••" required>
+                </div>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; font-size: 12px; color: var(--text-sub);">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; text-transform: none; font-weight: normal;">
+                    <input type="checkbox" name="remember" checked> Ingat sesi login
+                </label>
+            </div>
+
+            <button type="submit" class="btn-submit">
+                <i class="fas fa-sign-in-alt"></i> Masuk ke Dashboard
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            <span style="opacity: 0.7;"><i class="fas fa-shield-halved"></i> Dilindungi Autentikasi Sesi Aman</span>
+        </div>
+    </div>
+</body>
+</html>

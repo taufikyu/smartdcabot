@@ -1,0 +1,1936 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Coin DCA Bot Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-body: #f0f2f5;
+            --bg-card: #ffffff;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --accent: #e2e8f0;
+            --success: #10b981;
+            --success-bg: #ecfdf5;
+            --warning: #f59e0b;
+            --warning-bg: #fffbeb;
+            --danger: #ef4444;
+            --danger-bg: #fef2f2;
+            --purple: #8b5cf6;
+            --emerald: #059669;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+            background: var(--bg-body); 
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        .main-content { padding: 30px; max-width: 1400px; margin: 0 auto; }
+        
+        header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 25px; 
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .welcome h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+        .welcome p { color: var(--text-sub); font-size: 13px; margin-top: 4px; }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #ecfdf5;
+            color: #059669;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid #a7f3d0;
+        }
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+            animation: pulse 1.8s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        /* ACTION BUTTONS */
+        .action-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .action-btn:active { transform: translateY(0); }
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .btn-dust {
+            background: #f8fafc;
+            color: #475569;
+            border: 1px solid var(--accent);
+        }
+        .btn-dust:hover {
+            background: #f1f5f9;
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-buy {
+            background: #10b981;
+            color: white;
+        }
+        .btn-buy:hover { background: #059669; }
+
+        .btn-config {
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+        .btn-config:hover {
+            background: #e2e8f0;
+            color: var(--primary);
+        }
+
+        .btn-status-toggle {
+            background: #f8fafc;
+            color: #334155;
+            border: 1px solid #cbd5e1;
+        }
+        .btn-status-toggle.sell-only {
+            background: #fffbeb;
+            color: #b45309;
+            border-color: #fcd34d;
+        }
+        .btn-status-toggle:hover {
+            filter: brightness(0.95);
+        }
+
+        .btn-force-sell {
+            background: #fee2e2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+        .btn-force-sell:hover {
+            background: #ef4444;
+            color: white;
+            border-color: #ef4444;
+        }
+
+        /* CONTROL PANEL */
+        .control-panel {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            border: 1px solid var(--accent);
+        }
+        .control-title {
+            font-size: 14px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* TABS CSS */
+        .tabs-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+        }
+        .tabs-container::-webkit-scrollbar { height: 4px; }
+        .tabs-container::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+        
+        .tab-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--accent);
+            padding: 10px 22px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-sub);
+            transition: all 0.25s ease;
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            font-size: 13px;
+        }
+        .tab-btn:hover {
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        .tab-btn.analytics-btn.active {
+            background: #8b5cf6;
+            border-color: #8b5cf6;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        .tab-btn.scanner-btn.active {
+            background: #0d9488;
+            border-color: #0d9488;
+            box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3);
+        }
+
+        .tab-pane {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .tab-pane.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* GRID & CARDS */
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 25px; }
+        .card { background: var(--bg-card); padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); border: 1px solid var(--accent); transition: transform 0.2s ease; }
+        .card:hover { transform: translateY(-3px); }
+        .card h3 { font-size: 12px; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .card .value { font-size: 20px; font-weight: 800; display: block; }
+        
+        .progress-container { background: var(--accent); height: 7px; border-radius: 10px; margin-top: 12px; overflow: hidden; }
+        .progress-fill { background: var(--primary); height: 100%; border-radius: 10px; transition: width 0.4s ease; }
+
+        .profit { color: var(--success); }
+        .loss { color: var(--danger); }
+
+        .log-section { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 40px; }
+        .log-box { background: #ffffff; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.02); border: 1px solid var(--accent); overflow: hidden; }
+        .chart-box { grid-column: span 2; }
+        .log-box h3 { margin-bottom: 12px; font-size: 15px; border-bottom: 1px solid var(--accent); padding-bottom: 10px; font-weight: 700; }
+        pre { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-sub); white-space: pre-wrap; height: 240px; overflow-y: auto; overflow-x: hidden; line-height: 1.5; }
+        
+        pre::-webkit-scrollbar { width: 4px; }
+        pre::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+
+        /* ANALYTICS SECTION STYLES */
+        .analytics-hero {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 18px;
+            margin-bottom: 25px;
+        }
+        .hero-card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 22px;
+            border: 1px solid var(--accent);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero-card h4 { font-size: 12px; color: var(--text-sub); text-transform: uppercase; font-weight: 700; margin-bottom: 8px; }
+        .hero-card .hero-val { font-size: 26px; font-weight: 900; }
+        .hero-card i.hero-bg-icon {
+            position: absolute;
+            right: 15px;
+            bottom: 15px;
+            font-size: 45px;
+            opacity: 0.08;
+        }
+
+        .analytics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.3fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .daily-table, .history-table, .scanner-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .daily-table th, .history-table th, .scanner-table th {
+            text-align: left;
+            padding: 12px 14px;
+            background: #f8fafc;
+            color: var(--text-sub);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--accent);
+        }
+        .daily-table td, .history-table td, .scanner-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid #f1f5f9;
+            font-weight: 500;
+        }
+        .daily-table tr:hover td, .history-table tr:hover td, .scanner-table tr:hover td {
+            background: #f8fafc;
+        }
+
+        .tag-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-right: 4px;
+            background: #eff6ff;
+            color: #2563eb;
+        }
+
+        /* BACKTEST RESULT CARD */
+        .backtest-scorecard {
+            background: #f8fafc;
+            border: 1px solid var(--accent);
+            border-radius: 14px;
+            padding: 18px;
+            margin-top: 15px;
+        }
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .score-item {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+        .score-item small { display: block; color: var(--text-sub); font-size: 11px; font-weight: 600; }
+        .score-item span { font-size: 16px; font-weight: 800; display: block; margin-top: 2px; }
+
+        /* COIN KNOWLEDGE TOOLTIP */
+        .coin-tooltip-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .coin-tooltip-trigger {
+            font-weight: 800;
+            color: var(--primary);
+            border-bottom: 1.5px dotted #93c5fd;
+            transition: all 0.2s;
+        }
+        .coin-tooltip-trigger:hover {
+            color: #0284c7;
+            border-bottom-color: #0284c7;
+        }
+        .coin-tooltip-card {
+            visibility: hidden;
+            opacity: 0;
+            position: absolute;
+            bottom: 125%;
+            left: 0;
+            transform: translateY(8px);
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 12px 14px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            width: 270px;
+            z-index: 999;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+            text-align: left;
+            border: 1px solid #334155;
+        }
+        .coin-tooltip-card::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 20px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: #0f172a transparent transparent transparent;
+        }
+        .coin-tooltip-wrapper:hover .coin-tooltip-card {
+            visibility: visible;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .coin-tooltip-title {
+            font-size: 12px;
+            font-weight: 800;
+            color: #38bdf8;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+        .coin-tooltip-sector {
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 5px;
+            border-radius: 4px;
+            background: #0f766e;
+            color: #ccfbf1;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .coin-tooltip-desc {
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.45;
+            margin-top: 4px;
+        }
+
+        /* MODAL STYLES */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.2s ease;
+        }
+        .modal-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 460px;
+            padding: 25px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            border: 1px solid var(--accent);
+            animation: slideIn 0.25s ease;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--accent);
+        }
+        .modal-header h3 { font-size: 16px; font-weight: 800; }
+        .modal-close {
+            background: none; border: none; font-size: 24px;
+            cursor: pointer; color: var(--text-sub); line-height: 1;
+        }
+        .form-group { margin-bottom: 15px; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .form-group label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--text-main); }
+        .form-group small { display: block; font-size: 10px; color: var(--text-sub); margin-top: 4px; }
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--accent);
+            font-size: 14px;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+        .form-input:focus { border-color: var(--primary); }
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 25px;
+            padding-top: 15px;
+            border-top: 1px solid var(--accent);
+        }
+
+        /* TOAST NOTIFICATION */
+        #toast-container {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background: #1e293b;
+            color: #ffffff;
+            padding: 14px 22px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            max-width: 400px;
+        }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.info { border-left: 4px solid var(--primary); }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @media (max-width: 992px) { 
+            .log-section { grid-template-columns: 1fr; } 
+            .chart-box { grid-column: span 1; } 
+            .analytics-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .main-content { padding: 15px; }
+            header { flex-direction: column; align-items: flex-start; }
+            .grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+            .card { padding: 14px; }
+            .card .value { font-size: 16px; }
+            .tab-btn { padding: 8px 16px; font-size: 12px; }
+            .control-panel { flex-direction: column; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-content">
+        <header>
+            <div class="welcome">
+                <h1>Multi-Coin DCA Bot</h1>
+                <p>Engine: 🟢 Online | Autonomous Scanner & Backtest Lab Active | Pairs: {{ pairs_data | length }}</p>
+            </div>
+            
+            <div class="header-actions">
+                <button class="action-btn btn-dust" onclick="sweepDust()" title="Konversi saldo koin receh < $1 menjadi BNB">
+                    <i class="fas fa-broom"></i> Sweep Dust to BNB
+                </button>
+                <div class="live-badge">
+                    <span class="live-dot"></span> LIVE SYNC
+                </div>
+                <div class="date-now" style="font-weight: 600; font-size: 13px; color: var(--text-sub);">
+                    <i class="far fa-calendar-alt"></i> <span id="clock-display">{{ now }}</span>
+                </div>
+                <a href="/logout" style="margin-left: 6px; padding: 6px 12px; border-radius: 8px; background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); text-decoration: none; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 5px; transition: all 0.2s;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </header>
+
+        <!-- TABS NAVIGATION -->
+        <div class="tabs-container">
+            {% for p in pairs_data %}
+            <button class="tab-btn {{ 'active' if loop.index0 == 0 else '' }}" 
+                    id="tab-btn-{{ p.pair }}"
+                    onclick="switchTab(event, '{{ p.pair }}')">
+                <i class="fab fa-bitcoin"></i> <span id="tab-label-{{ p.pair }}">{{ p.coin_name }}</span>
+            </button>
+            {% endfor %}
+            
+            <!-- ANALYTICS TAB -->
+            <button class="tab-btn analytics-btn" 
+                    id="tab-btn-pane-analytics"
+                    onclick="switchTab(event, 'pane-analytics')">
+                <i class="fas fa-chart-pie"></i> <span>Profit Analytics</span>
+            </button>
+
+            <!-- SCANNER & LAB TAB -->
+            <button class="tab-btn scanner-btn" 
+                    id="tab-btn-pane-scanner"
+                    onclick="switchTab(event, 'pane-scanner')">
+                <i class="fas fa-satellite-dish"></i> <span>Scanner & Lab</span>
+            </button>
+        </div>
+
+        {% for p in pairs_data %}
+        <div id="{{ p.pair }}" class="tab-pane {{ 'active' if loop.index0 == 0 else '' }}">
+            
+            <!-- QUICK ACTION CONTROL BAR -->
+            <div class="control-panel">
+                <div class="control-title">
+                    <i class="fas fa-sliders-h" style="color: var(--primary);"></i> Control Panel ({{ p.pair }})
+                </div>
+                <div class="control-buttons">
+                    <!-- Manual Buy -->
+                    <button class="action-btn btn-buy" onclick="triggerAction('buy', '{{ p.pair }}', 'Serok / Manual Buy 1 peluru untuk {{ p.pair }} sekarang?')">
+                        <i class="fas fa-cart-plus"></i> Manual Buy
+                    </button>
+                    
+                    <!-- Edit Config Button -->
+                    <button class="action-btn btn-config" onclick="openConfigModal('{{ p.pair }}')">
+                        <i class="fas fa-cog"></i> Edit Config
+                    </button>
+
+                    <!-- Toggle Status (Normal / Sell Only) -->
+                    <button class="action-btn btn-status-toggle {{ 'sell-only' if p.data.config.status == 0 else '' }}" 
+                            id="btn-status-{{ p.pair }}"
+                            onclick="triggerAction('toggle_status', '{{ p.pair }}', 'Ubah mode trading {{ p.pair }}?')">
+                        <i class="fas {{ 'fa-pause-circle' if p.data.config.status == 0 else 'fa-sync-alt' }}"></i> 
+                        <span id="text-status-{{ p.pair }}">{{ 'Mode: Sell Only (Klik utk Normal)' if p.data.config.status == 0 else 'Mode: Normal (Klik utk Sell Only)' }}</span>
+                    </button>
+                    
+                    <!-- Force Sell -->
+                    <button class="action-btn btn-force-sell" onclick="triggerAction('force_sell', '{{ p.pair }}', 'PERINGATAN: Force Sell akan langsung MENJUAL SEMUA koin {{ p.pair }} di harga pasar sekarang. Lanjutkan?')">
+                        <i class="fas fa-bolt"></i> Force Sell
+                    </button>
+                </div>
+            </div>
+
+            <!-- PENDING SWAP ALERT BANNER -->
+            <div id="pending-swap-box-{{ p.pair }}" style="display: {% if p.data.pending_replacement %}flex{% else %}none{% endif %}; align-items: center; justify-content: space-between; background: #fffbeb; border: 1px solid #fde68a; padding: 10px 16px; border-radius: 8px; margin-bottom: 15px;">
+                <div style="font-size: 13px; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-hourglass-half" style="color: #d97706; font-size: 15px;"></i>
+                    <span>Antrean Ganti Koin: Menunggu Take Profit untuk digantikan oleh <strong id="pending-swap-target-{{ p.pair }}" style="color: #b45309; text-decoration: underline;">{% if p.data.pending_replacement %}{{ p.data.pending_replacement.pair }}{% endif %}</strong> (0% Rugi)</span>
+                </div>
+                <button class="action-btn btn-dust" style="padding: 5px 12px; font-size: 11px; font-weight: 700; background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;" onclick="cancelPendingSwap('{{ p.pair }}')">
+                    <i class="fas fa-times-circle"></i> Batalkan Pergantian
+                </button>
+            </div>
+
+            <!-- METRIC CARDS -->
+            <div class="grid">
+                <div class="card">
+                    <h3>Budget Left</h3>
+                    <span class="value" id="card-budget-{{ p.pair }}">{{ p.data.budget_left | round(2) }}</span>
+                    <div class="progress-container">
+                        {% set usage = (p.data.budget_left / p.data.config.budget_usd) * 100 if p.data.config.budget_usd > 0 else 0 %}
+                        <div class="progress-fill" id="prog-budget-{{ p.pair }}" style="width: {{ usage }}%"></div>
+                    </div>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);" id="cap-budget-{{ p.pair }}">Cap: {{ usage | round(1) }}%</p>
+                </div>
+                <div class="card">
+                    <h3>Current Price</h3>
+                    <span class="value" id="card-price-{{ p.pair }}">{{ p.price }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">{{ p.pair.replace("USDT", "") }} / USDT</p>
+                </div>
+                <div class="card">
+                    <h3>AVG Buy</h3>
+                    <span class="value" id="card-avg-{{ p.pair }}">{{ p.avg_buy }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);" id="card-layers-{{ p.pair }}">{{ (p.data.buys | length) }} Layer Active</p>
+                </div>
+                <div class="card">
+                    <h3>Selisih</h3>
+                    <span class="value" id="card-selisih-{{ p.pair }}"> {{ p.selisih }} %</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Realtime estimate</p>
+                </div>
+                <div class="card">
+                    <h3>Floating Profit</h3>
+                    <span class="value {{ 'profit' if p.profit > 0 else 'loss' }}" id="card-profit-{{ p.pair }}">
+                        {{ '+' if p.profit > 0 }}{{ p.profit }} USDT
+                    </span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Realtime estimate</p>
+                </div>
+                <div class="card">
+                    <h3>RSI(14) 15m</h3>
+                    <span class="value" id="card-rsi-{{ p.pair }}">
+                        {{ p.rsi }}
+                        <span id="badge-rsi-{{ p.pair }}" style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; background: {{ '#ecfdf5' if p.rsi <= (p.rsi_max_entry | default(48)) else ('#fef2f2' if p.rsi >= 70 else '#f1f5f9') }}; color: {{ '#059669' if p.rsi <= (p.rsi_max_entry | default(48)) else ('#dc2626' if p.rsi >= 70 else '#475569') }};">
+                            {{ 'Oversold 🟢' if p.rsi <= (p.rsi_max_entry | default(48)) else ('Overbought 🔴' if p.rsi >= 70 else 'Neutral ⚪') }}
+                        </span>
+                    </span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);" id="card-rsi-desc-{{ p.pair }}">Layer 1: RSI &le; <span id="card-rsi-max-{{ p.pair }}">{{ p.rsi_max_entry | default(48) }}</span></p>
+                </div>
+                <div class="card">
+                    <h3>Peak Price</h3>
+                    <span class="value" id="card-peak-{{ p.pair }}"> {{ p.peak_price }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">{{ p.pair.replace("USDT", "") }} / USDT</p>
+                </div>
+                <div class="card">
+                    <h3>Low Price</h3>
+                    <span class="value" id="card-low-{{ p.pair }}"> {{ p.lowest_price }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">{{ p.pair.replace("USDT", "") }} / USDT</p>
+                </div>
+                <div class="card">
+                    <h3>Drop</h3>
+                    <span class="value" id="card-drop-{{ p.pair }}"> {{ p.drop }} %</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Dari Peak Price</p>
+                </div>
+                <div class="card">
+                    <h3>Free USDT</h3>
+                    <span class="value" id="card-free-usdt"> {{ p.free_usdt }} USDT</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Saldo Kas Bebas</p>
+                </div>
+                <div class="card">
+                    <h3>Total USDT</h3>
+                    <span class="value" id="card-total-usdt"> {{ p.total_usdt }} USDT</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Total Valuasi Akun</p>
+                </div>
+                <div class="card">
+                    <h3>Next Layer</h3>
+                    <span class="value" id="card-next-{{ p.pair }}" style="font-size: 16px;"> {{ p.next_layer_str }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Syarat Beli Selanjutnya</p>
+                </div>
+                <div class="card">
+                    <h3>Target Sell</h3>
+                    <span class="value" id="card-tp-{{ p.pair }}"> {{ p.take_profit }}</span>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-sub);">Auto Take Profit Limit</p>
+                </div>
+            </div>
+
+            <!-- LOGS & CHART SECTION -->
+            <div class="log-section">
+                <div class="log-box">
+                    <h3><i class="fas fa-shopping-basket" style="color: var(--primary);"></i> Open BUY Layers ({{ p.pair }})</h3>
+                    <pre id="log-buys-{{ p.pair }}">{{ p.buys }}</pre>
+                </div>
+                <div class="log-box">
+                    <h3><i class="fas fa-history" style="color: var(--primary);"></i> Trade Logs ({{ p.pair }})</h3>
+                    <pre id="log-trades-{{ p.pair }}">{{ p.logs }}</pre>
+                </div>
+                <div class="log-box chart-box">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-chart-line" style="color: var(--primary);"></i> Price Movement</span>
+                        <span class="{{ 'profit' if p.history_change_pct > 0 else 'loss' }}" style="font-size: 14px; font-weight: 700;">
+                            {{ '+' if p.history_change_pct > 0 else '' }}{{ p.history_change_pct }}%
+                        </span>
+                    </h3>
+                    <div style="position: relative; height: 280px; width: 100%;">
+                        <canvas id="priceChart_{{ p.pair }}"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <!-- PROFIT ANALYTICS PANE -->
+        <div id="pane-analytics" class="tab-pane">
+            <h2 class="pair-header" style="border-color: #8b5cf6;"><i class="fas fa-chart-pie" style="color: #8b5cf6;"></i> Realized Profit Analytics & Capital Tracker</h2>
+            
+            <!-- CAPITAL & PORTFOLIO GROWTH TRACKER BANNER -->
+            <div class="control-panel" style="border-left: 4px solid #8b5cf6; margin-bottom: 20px; background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(243,232,255,0.7)); padding: 18px 22px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; flex-wrap: wrap; gap: 15px;">
+                    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                        <div>
+                            <span style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">💰 Total Modal Pokok Masuk (Deposit):</span>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                                <span style="font-size: 20px; font-weight: 900; color: #1e293b;" id="cap-injected-val">$20.00 USDT</span>
+                                <button class="action-btn btn-config" style="padding: 4px 10px; font-size: 11px;" onclick="promptUpdateCapital()">
+                                    <i class="fas fa-edit"></i> Edit Modal
+                                </button>
+                            </div>
+                        </div>
+                        <div style="height: 35px; width: 1px; background: #cbd5e1;"></div>
+                        <div>
+                            <span style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">🏦 Total Valuasi Dompet Spot:</span>
+                            <div style="font-size: 20px; font-weight: 900; color: #2563eb; margin-top: 4px;" id="cap-equity-val">$0.00 USDT</div>
+                        </div>
+                        <div style="height: 35px; width: 1px; background: #cbd5e1;"></div>
+                        <div>
+                            <span style="font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase;">📈 Pertumbuhan Modal Bersih (Net Growth):</span>
+                            <div style="font-size: 20px; font-weight: 900; margin-top: 4px;" id="cap-growth-val">+0.00 USDT (+0.0%)</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 12px; color: var(--text-sub); max-width: 280px; line-height: 1.4;">
+                        <i class="fas fa-shield-alt" style="color: #8b5cf6;"></i> <span>Modal disetor adalah modal pokok Anda, tidak terpengaruh naik-turun hasil trading bot.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUMMARY HERO CARDS -->
+            <div class="analytics-hero">
+                <div class="hero-card">
+                    <h4>All-Time Realized Profit</h4>
+                    <span class="hero-val profit" id="an-total-profit">0.00 USDT</span>
+                    <p style="font-size: 11px; color: var(--text-sub); margin-top: 5px;">Total cuan bersih yang sudah ditutup</p>
+                    <i class="fas fa-wallet hero-bg-icon"></i>
+                </div>
+                <div class="hero-card">
+                    <h4>Profit Hari Ini</h4>
+                    <span class="hero-val profit" id="an-today-profit">0.00 USDT</span>
+                    <p style="font-size: 11px; color: var(--text-sub); margin-top: 5px;">Realisasi hari ini</p>
+                    <i class="fas fa-sun hero-bg-icon"></i>
+                </div>
+                <div class="hero-card">
+                    <h4>Profit Bulan Ini</h4>
+                    <span class="hero-val profit" id="an-month-profit">0.00 USDT</span>
+                    <p style="font-size: 11px; color: var(--text-sub); margin-top: 5px;">Bulan berjalan</p>
+                    <i class="fas fa-calendar-check hero-bg-icon"></i>
+                </div>
+                <div class="hero-card">
+                    <h4>Total Siklus / Trades</h4>
+                    <span class="hero-val" id="an-total-trades" style="color: var(--primary);">0</span>
+                    <p style="font-size: 11px; color: var(--text-sub); margin-top: 5px;">Win Rate: <strong style="color: var(--success);" id="an-win-rate">100%</strong></p>
+                    <i class="fas fa-trophy hero-bg-icon"></i>
+                </div>
+            </div>
+
+            <!-- ANALYTICS BREAKDOWN TABLES -->
+            <div class="analytics-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px;">
+                <!-- MONTHLY BREAKDOWN -->
+                <div class="log-box" style="height: fit-content;">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-calendar-alt" style="color: #8b5cf6;"></i> Rekapan Cuan Bulanan (Monthly)</span>
+                        <small style="font-size: 11px; color: var(--text-sub); font-weight: normal;">Akumulasi per Bulan</small>
+                    </h3>
+                    <div style="max-height: 380px; overflow-y: auto;">
+                        <table class="daily-table">
+                            <thead>
+                                <tr>
+                                    <th>Periode Bulan</th>
+                                    <th>Koin Panen</th>
+                                    <th>Siklus</th>
+                                    <th>Total Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="monthly-table-body">
+                                <tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Memuat data bulanan...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- DAILY BREAKDOWN -->
+                <div class="log-box" style="height: fit-content;">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-calendar-day" style="color: #8b5cf6;"></i> Rekapan Cuan Harian (Daily)</span>
+                        <small style="font-size: 11px; color: var(--text-sub); font-weight: normal;">Jurnal Harian</small>
+                    </h3>
+                    <div style="max-height: 380px; overflow-y: auto;">
+                        <table class="daily-table">
+                            <thead>
+                                <tr>
+                                    <th>Tanggal</th>
+                                    <th>Koin Panen</th>
+                                    <th>Siklus</th>
+                                    <th>Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="daily-table-body">
+                                <tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Memuat data analitik...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RECENT SELLS (FULL WIDTH) -->
+            <div class="log-box" style="height: fit-content; margin-bottom: 30px;">
+                <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                    <span><i class="fas fa-receipt" style="color: #8b5cf6;"></i> Riwayat Transaksi Take Profit (50 Terakhir)</span>
+                    <small style="font-size: 11px; color: var(--text-sub); font-weight: normal;">Eksekusi Real-Time</small>
+                </h3>
+                <div style="max-height: 380px; overflow-y: auto;">
+                    <table class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Waktu</th>
+                                <th>Koin</th>
+                                <th>Harga Jual</th>
+                                <th>Profit (USDT)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body">
+                            <tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Memuat riwayat transaksi...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCANNER & BACKTEST LAB PANE -->
+        <div id="pane-scanner" class="tab-pane">
+            <h2 class="pair-header" style="border-color: #0d9488;"><i class="fas fa-satellite-dish" style="color: #0d9488;"></i> Auto-Coin Scanner & Backtest Lab</h2>
+            
+            <div class="control-panel" style="border-left: 4px solid #0d9488;">
+                <div class="control-title">
+                    <i class="fas fa-shield-alt" style="color: #0d9488;"></i> Slot Management Status
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569;">
+                        <label for="scanner-notional-filter" style="font-weight: 700;">Max Min-Notional:</label>
+                        <div style="display: flex; align-items: center; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 2px 8px;">
+                            <span style="font-weight: 700; color: #64748b; font-size: 12px; margin-right: 4px;">$</span>
+                            <input type="number" id="scanner-notional-filter" value="2.1" step="0.1" min="0.5" max="50" onchange="loadScanner(true)" onkeydown="if(event.key==='Enter'){loadScanner(true);}" style="width: 55px; border: none; outline: none; font-size: 13px; font-weight: 700; color: #0f766e;">
+                        </div>
+                        <small style="color: #64748b; font-size: 11px;">(Default: $2.1)</small>
+                    </div>
+                    <span id="slot-counter-badge" style="font-size: 13px; font-weight: 700; background: {% if pairs_data | length >= 2 %}#fef3c7{% else %}#ccfbf1{% endif %}; color: {% if pairs_data | length >= 2 %}#b45309{% else %}#0f766e{% endif %}; padding: 6px 14px; border-radius: 20px;">
+                        Active Slots: {{ pairs_data | length }} / 2
+                    </span>
+                    <button class="action-btn btn-dust" onclick="loadScanner(true)">
+                        <i class="fas fa-sync-alt"></i> Refresh Scanner
+                    </button>
+                </div>
+            </div>
+
+            <div class="analytics-grid">
+                <!-- SCANNER RADAR -->
+                <div class="log-box" style="height: fit-content;">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fas fa-radar" style="color: #0d9488;"></i> Top Scanner Opportunities</span>
+                        <small style="font-size: 10px; color: var(--text-sub); font-weight: normal;">Vol &gt; $15M | Anti-Delist</small>
+                    </h3>
+                    <div style="max-height: 480px; overflow-y: auto;">
+                        <table class="scanner-table">
+                            <thead>
+                                <tr>
+                                    <th>Koin</th>
+                                    <th>Harga</th>
+                                    <th>24h %</th>
+                                    <th>Vol (24h)</th>
+                                    <th>Min Order</th>
+                                    <th>RSI 15m</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scanner-table-body">
+                                <tr><td colspan="7" style="text-align: center; color: var(--text-sub);">Sedang memindai pasar Binance...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- INTERACTIVE BACKTEST SIMULATOR -->
+                <div class="log-box" style="height: fit-content;">
+                    <h3><i class="fas fa-flask" style="color: #0d9488;"></i> Instant DCA Backtest Simulator</h3>
+                    <form onsubmit="runCustomBacktest(event)" style="margin-top: 10px;">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Pair Symbol</label>
+                                <input type="text" id="bt-pair" class="form-input" placeholder="contoh: SUIUSDT" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Durasi Uji Coba</label>
+                                <select id="bt-days" class="form-input">
+                                    <option value="7">7 Hari Terakhir</option>
+                                    <option value="14">14 Hari Terakhir</option>
+                                    <option value="30" selected>30 Hari Terakhir (1 Bulan)</option>
+                                    <option value="60">60 Hari Terakhir (2 Bulan)</option>
+                                    <option value="100">100 Hari Terakhir (~3 Bulan)</option>
+                                    <option value="180">6 Bulan Terakhir (180 Hari)</option>
+                                    <option value="270">9 Bulan Terakhir (270 Hari)</option>
+                                    <option value="365">12 Bulan / 1 Tahun (365 Hari)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Budget USD ($)</label>
+                                <input type="number" step="0.1" id="bt-budget" class="form-input" value="15.0" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Buy Amount ($)</label>
+                                <input type="number" step="0.1" id="bt-buy" class="form-input" value="2.1" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="action-btn btn-buy" style="width: 100%; justify-content: center; background: #0d9488; margin-top: 5px;">
+                            <i class="fas fa-play"></i> Jalankan Simulasi Backtest
+                        </button>
+                    </form>
+
+                    <!-- BACKTEST RESULT CONTAINER -->
+                    <div id="bt-result-box" style="display: none;" class="backtest-scorecard">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                            <strong style="font-size: 15px;" id="bt-res-title">Hasil Uji Coba</strong>
+                            <span id="bt-res-safety" style="font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 12px; background: #ecfdf5; color: #059669;">AMAN 🛡️</span>
+                        </div>
+                        <div id="bt-res-safety-reason" style="font-size: 11px; color: #475569; margin-top: 6px; padding: 6px 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; line-height: 1.45;"></div>
+                        <div class="score-grid">
+                            <div class="score-item">
+                                <small>Total Realized Profit</small>
+                                <span class="profit" id="bt-res-profit">+0.00 USDT</span>
+                            </div>
+                            <div class="score-item">
+                                <small>Simulasi ROI %</small>
+                                <span class="profit" id="bt-res-roi">+0.0%</span>
+                            </div>
+                            <div class="score-item">
+                                <small>Siklus Panen Selesai</small>
+                                <span id="bt-res-cycles">0x TP</span>
+                            </div>
+                            <div class="score-item">
+                                <small>Layer Terdalam Terserok</small>
+                                <span id="bt-res-maxlayer">Layer 1</span>
+                            </div>
+                        </div>
+
+                        <!-- COIN KNOWLEDGE PROFILE -->
+                        <div id="bt-res-info-box" style="margin-top: 12px; padding: 12px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                                <strong style="font-size: 13px; color: #1e293b;"><i class="fas fa-info-circle" style="color: #0d9488;"></i> <span id="bt-info-name">Profil Koin</span></strong>
+                                <span id="bt-info-sector" class="coin-tooltip-sector" style="background: #e0f2fe; color: #0369a1;"></span>
+                            </div>
+                            <div id="bt-info-desc" style="font-size: 11px; color: #64748b; line-height: 1.45;"></div>
+                        </div>
+
+                        <button id="bt-res-add-btn" class="action-btn btn-buy" style="width: 100%; justify-content: center; margin-top: 15px;" onclick="addBacktestedPair()">
+                            <i class="fas fa-plus-circle"></i> Tambahkan Koin Ini ke Live Trading
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- EDIT CONFIG MODAL -->
+    <div id="config-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog" style="color: var(--primary);"></i> Edit Config (<span id="cfg-pair-title"></span>)</h3>
+                <button class="modal-close" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <form id="config-form" onsubmit="saveConfig(event)">
+                <input type="hidden" id="cfg-pair">
+                
+                <div class="form-group">
+                    <label>Total Budget USD ($)</label>
+                    <input type="number" step="0.1" id="cfg-budget" class="form-input" required>
+                    <small>Maksimal alokasi modal untuk koin ini</small>
+                </div>
+                
+                <div class="form-group">
+                    <label>Buy Amount per Layer ($)</label>
+                    <input type="number" step="0.01" id="cfg-buy-amount" class="form-input" required>
+                    <small>Nominal per satu tembakan serok (misal: $2.1)</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Take Profit (%)</label>
+                        <input type="number" step="0.01" id="cfg-tp" class="form-input" required>
+                        <small>Target cuan dasar (misal: 0.8 untuk 0.8%)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Drop Threshold (%)</label>
+                        <input type="number" step="0.01" id="cfg-drop" class="form-input" required>
+                        <small>Syarat drop (misal: 1.3 untuk 1.3%)</small>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Max RSI Entry (Layer 1)</label>
+                    <input type="number" step="1" min="10" max="90" id="cfg-rsi-max" class="form-input" required>
+                    <small>Batas maksimal RSI untuk tembakan pertama (rekomendasi: 45 - 48)</small>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="action-btn btn-dust" onclick="closeConfigModal()">Batal</button>
+                    <button type="submit" class="action-btn btn-buy"><i class="fas fa-save"></i> Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SWAP COIN MODAL (MAX 2 SLOTS) -->
+    <div id="swap-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-sync-alt" style="color: #0d9488;"></i> Ganti Koin Aktif (Maks 2 Slot)</h3>
+                <button class="modal-close" onclick="closeSwapModal()">&times;</button>
+            </div>
+            <form id="swap-form" onsubmit="submitSwapCoin(event)">
+                <input type="hidden" id="swap-new-pair">
+                <input type="hidden" id="swap-new-budget">
+                <input type="hidden" id="swap-new-buy">
+
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: #166534; font-weight: 600;">
+                        Koin Baru: <span id="swap-new-pair-title" style="font-size: 15px; font-weight: 800; color: #0d9488;"></span>
+                    </div>
+                    <small style="color: #15803d;">Slot trading saat ini sudah penuh (2/2). Pilih salah satu koin di bawah untuk digantikan:</small>
+                </div>
+
+                <div class="form-group">
+                    <label style="font-weight: 700;">Pilih Koin yang Ingin Digantikan:</label>
+                    <div id="swap-target-options" style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                        <!-- Diisi otomatis oleh openSwapModal -->
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label style="font-weight: 700;">Mode Penggantian:</label>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                        <label style="display: flex; align-items: flex-start; gap: 8px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                            <input type="radio" name="swap_mode" value="sell_only" checked style="margin-top: 3px;">
+                            <div>
+                                <strong style="color: #059669; font-size: 13px;">Mode Aman (Sell Only) ⭐ Rekomendasi</strong>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Tunggu koin lama Take Profit dulu. Begitu posisi koin lama closed (0 layer), koin baru otomatis aktif seketika (0% rugi).</div>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: flex-start; gap: 8px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">
+                            <input type="radio" name="swap_mode" value="force_sell" style="margin-top: 3px;">
+                            <div>
+                                <strong style="color: #dc2626; font-size: 13px;">Mode Instan (Force Sell)</strong>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Langsung jual koin lama di harga pasar sekarang dan detik ini juga koin baru langsung diaktifkan.</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer" style="margin-top: 20px;">
+                    <button type="button" class="action-btn btn-dust" onclick="closeSwapModal()">Batal</button>
+                    <button type="submit" class="action-btn btn-buy" style="background: #0d9488;">
+                        <i class="fas fa-check-circle"></i> Konfirmasi Ganti Koin
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toast-container"></div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        var API_BASE = window.location.pathname.replace(/\/+$/, '') + '/api';
+        var GLOBAL_PAIRS_DATA = {};
+        var LAST_BACKTEST_PAIR = '';
+
+        // Tab Switcher
+        function switchTab(evt, pairId) {
+            var tabcontent = document.getElementsByClassName("tab-pane");
+            for (var i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            var tablinks = document.getElementsByClassName("tab-btn");
+            for (var i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            var target = document.getElementById(pairId);
+            if (target) target.classList.add("active");
+            if (evt && evt.currentTarget) evt.currentTarget.classList.add("active");
+            localStorage.setItem("activePair", pairId);
+
+            if (pairId === 'pane-analytics') loadAnalytics();
+            if (pairId === 'pane-scanner') loadScanner();
+        }
+
+        // Restore Tab State on load
+        window.addEventListener('DOMContentLoaded', function() {
+            var activePair = localStorage.getItem("activePair");
+            if (activePair) {
+                var targetPane = document.getElementById(activePair);
+                var targetBtn = document.getElementById("tab-btn-" + activePair);
+                if (targetPane && targetBtn) {
+                    var tabcontent = document.getElementsByClassName("tab-pane");
+                    for (var i = 0; i < tabcontent.length; i++) tabcontent[i].classList.remove("active");
+                    var tablinks = document.getElementsByClassName("tab-btn");
+                    for (var i = 0; i < tablinks.length; i++) tablinks[i].classList.remove("active");
+                    targetPane.classList.add("active");
+                    targetBtn.classList.add("active");
+                    if (activePair === 'pane-analytics') loadAnalytics();
+                    if (activePair === 'pane-scanner') loadScanner();
+                }
+            }
+            setInterval(pollStatusAll, 5000);
+            pollStatusAll();
+            loadAnalytics();
+        });
+
+        // Toast Notification Function
+        function showToast(message, type = 'info') {
+            var container = document.getElementById('toast-container');
+            var toast = document.createElement('div');
+            toast.className = 'toast ' + type;
+            var icon = type === 'success' ? 'fa-check-circle' : (type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle');
+            toast.innerHTML = '<i class="fas ' + icon + '"></i> <span>' + message + '</span>';
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(20px)';
+                toast.style.transition = 'all 0.4s ease';
+                setTimeout(function() { toast.remove(); }, 400);
+            }, 4500);
+        }
+
+        // Action Trigger Handler
+        function triggerAction(actionName, pair, confirmText) {
+            if (confirmText && !confirm(confirmText)) {
+                return;
+            }
+
+            showToast("Mengirim perintah " + actionName + " untuk " + pair + "...", "info");
+
+            fetch(API_BASE + '/action/' + actionName, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pair: pair })
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    pollStatusAll();
+                    loadAnalytics();
+                } else {
+                    showToast("Gagal: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error aksi: " + err.message, "error");
+            });
+        }
+
+        // Dust Sweep Handler
+        function sweepDust() {
+            if (!confirm("Bersihkan semua sisa saldo koin receh (< $1) dan konversi menjadi BNB?")) {
+                return;
+            }
+            showToast("Sedang memproses Dust Sweep ke BNB di Binance...", "info");
+            fetch(API_BASE + '/action/sweep_dust', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    pollStatusAll();
+                } else {
+                    showToast("Dust Sweep: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error Dust Sweep: " + err.message, "error");
+            });
+        }
+
+        // Config Modal Handlers
+        function openConfigModal(pair) {
+            var pData = GLOBAL_PAIRS_DATA[pair] || {};
+            document.getElementById('cfg-pair').value = pair;
+            document.getElementById('cfg-pair-title').innerText = pair;
+            
+            document.getElementById('cfg-budget').value = pData.budget_usd || 15;
+            document.getElementById('cfg-buy-amount').value = pData.buy_amount || 2.1;
+            document.getElementById('cfg-tp').value = pData.take_profit_margin ? (pData.take_profit_margin * 100).toFixed(2) : 0.8;
+            document.getElementById('cfg-drop').value = pData.drop_threshold ? (pData.drop_threshold * 100).toFixed(2) : 1.3;
+            document.getElementById('cfg-rsi-max').value = pData.rsi_max_entry !== undefined ? pData.rsi_max_entry : 48;
+            
+            document.getElementById('config-modal').style.display = 'flex';
+        }
+
+        function closeConfigModal() {
+            document.getElementById('config-modal').style.display = 'none';
+        }
+
+        function saveConfig(event) {
+            event.preventDefault();
+            var pair = document.getElementById('cfg-pair').value;
+            var budget = parseFloat(document.getElementById('cfg-budget').value);
+            var buyAmt = parseFloat(document.getElementById('cfg-buy-amount').value);
+            var tpPct = parseFloat(document.getElementById('cfg-tp').value);
+            var dropPct = parseFloat(document.getElementById('cfg-drop').value);
+            var rsiMax = parseFloat(document.getElementById('cfg-rsi-max').value);
+
+            if (buyAmt > budget) {
+                alert("Buy Amount per Layer tidak boleh lebih besar dari Total Budget!");
+                return;
+            }
+
+            showToast("Menyimpan konfigurasi baru untuk " + pair + "...", "info");
+
+            fetch(API_BASE + '/action/update_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pair: pair,
+                    budget_usd: budget,
+                    buy_amount: buyAmt,
+                    take_profit_margin: tpPct / 100.0,
+                    drop_threshold: dropPct / 100.0,
+                    rsi_max_entry: rsiMax
+                })
+            })
+            .then(function(res) {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    closeConfigModal();
+                    pollStatusAll();
+                } else {
+                    showToast("Gagal simpan: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error update config: " + err.message, "error");
+            });
+        }
+
+        // Realtime Polling function
+        function pollStatusAll() {
+            fetch(API_BASE + '/status_all')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                GLOBAL_PAIRS_DATA = data.pairs || {};
+
+                var freeEls = document.querySelectorAll('#card-free-usdt');
+                freeEls.forEach(function(el) { el.innerText = data.free_usdt + " USDT"; });
+                var totEls = document.querySelectorAll('#card-total-usdt');
+                totEls.forEach(function(el) { el.innerText = data.total_usdt + " USDT"; });
+
+                for (var pair in data.pairs) {
+                    var p = data.pairs[pair];
+                    
+                    var priceEl = document.getElementById('card-price-' + pair);
+                    if (priceEl) priceEl.innerText = p.price;
+
+                    var avgEl = document.getElementById('card-avg-' + pair);
+                    if (avgEl) avgEl.innerText = p.avg_buy;
+
+                    var layerEl = document.getElementById('card-layers-' + pair);
+                    if (layerEl) layerEl.innerText = p.layers_count + " Layer Active";
+
+                    var selisihEl = document.getElementById('card-selisih-' + pair);
+                    if (selisihEl) selisihEl.innerText = p.selisih + " %";
+
+                    var profitEl = document.getElementById('card-profit-' + pair);
+                    if (profitEl) {
+                        profitEl.innerText = (p.profit > 0 ? "+" : "") + p.profit + " USDT";
+                        profitEl.className = "value " + (p.profit > 0 ? "profit" : "loss");
+                    }
+
+                    var peakEl = document.getElementById('card-peak-' + pair);
+                    if (peakEl) peakEl.innerText = p.peak_price;
+
+                    var lowEl = document.getElementById('card-low-' + pair);
+                    if (lowEl) lowEl.innerText = p.lowest_price;
+
+                    var dropEl = document.getElementById('card-drop-' + pair);
+                    if (dropEl) dropEl.innerText = p.drop + " %";
+
+                    var tpEl = document.getElementById('card-tp-' + pair);
+                    if (tpEl) tpEl.innerText = p.take_profit;
+
+                    var budEl = document.getElementById('card-budget-' + pair);
+                    if (budEl) budEl.innerText = p.budget_left;
+
+                    if (p.rsi !== undefined) {
+                        var rsiEl = document.getElementById('card-rsi-' + pair);
+                        if (rsiEl) {
+                            var rsiVal = p.rsi;
+                            var maxEntry = p.rsi_max_entry !== undefined ? p.rsi_max_entry : 48;
+                            var badgeText = rsiVal <= maxEntry ? 'Oversold 🟢' : (rsiVal >= 70 ? 'Overbought 🔴' : 'Neutral ⚪');
+                            var bgCol = rsiVal <= maxEntry ? '#ecfdf5' : (rsiVal >= 70 ? '#fef2f2' : '#f1f5f9');
+                            var txtCol = rsiVal <= maxEntry ? '#059669' : (rsiVal >= 70 ? '#dc2626' : '#475569');
+                            rsiEl.innerHTML = rsiVal + ' <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: 6px; background: ' + bgCol + '; color: ' + txtCol + ';">' + badgeText + '</span>';
+                        }
+                    }
+
+                    if (p.rsi_max_entry !== undefined) {
+                        var rsiMaxEl = document.getElementById('card-rsi-max-' + pair);
+                        if (rsiMaxEl) rsiMaxEl.innerText = p.rsi_max_entry;
+                    }
+
+                    if (p.next_layer_str !== undefined) {
+                        var nextEl = document.getElementById('card-next-' + pair);
+                        if (nextEl) nextEl.innerText = p.next_layer_str;
+                    }
+
+                    if (p.buys !== undefined) {
+                        var buyLogEl = document.getElementById('log-buys-' + pair);
+                        if (buyLogEl) buyLogEl.innerText = p.buys;
+                    }
+
+                    if (p.logs !== undefined) {
+                        var tradeLogEl = document.getElementById('log-trades-' + pair);
+                        if (tradeLogEl) tradeLogEl.innerText = p.logs;
+                    }
+
+                    var progEl = document.getElementById('prog-budget-' + pair);
+                    var capEl = document.getElementById('cap-budget-' + pair);
+                    if (progEl && p.budget_usd > 0) {
+                        var usage = (p.budget_left / p.budget_usd) * 100;
+                        progEl.style.width = usage + "%";
+                        if (capEl) capEl.innerText = "Cap: " + usage.toFixed(1) + "%";
+                    }
+
+                    var statusBtn = document.getElementById('btn-status-' + pair);
+                    var statusText = document.getElementById('text-status-' + pair);
+                    var tabLabel = document.getElementById('tab-label-' + pair);
+                    var coinName = pair.replace("USDT", "");
+
+                    if (statusBtn && statusText) {
+                        if (p.status === 0) {
+                            statusBtn.className = "action-btn btn-status-toggle sell-only";
+                            statusText.innerText = "Mode: Sell Only (Klik utk Normal)";
+                            if (tabLabel) tabLabel.innerText = coinName + " (Sell Only)";
+                        } else {
+                            statusBtn.className = "action-btn btn-status-toggle";
+                            statusText.innerText = "Mode: Normal (Klik utk Sell Only)";
+                            if (tabLabel) tabLabel.innerText = coinName;
+                        }
+                    }
+
+                    var swapBox = document.getElementById('pending-swap-box-' + pair);
+                    var swapTarget = document.getElementById('pending-swap-target-' + pair);
+                    if (swapBox) {
+                        if (p.pending_replacement && p.pending_replacement.pair) {
+                            swapBox.style.display = 'flex';
+                            if (swapTarget) swapTarget.innerText = p.pending_replacement.pair;
+                        } else {
+                            swapBox.style.display = 'none';
+                        }
+                    }
+                }
+
+                var activeCount = Object.keys(data.pairs).length;
+                var slotBadge = document.getElementById('slot-counter-badge');
+                if (slotBadge) {
+                    slotBadge.innerText = 'Active Slots: ' + activeCount + ' / 2';
+                    if (activeCount >= 2) {
+                        slotBadge.style.background = '#fef3c7';
+                        slotBadge.style.color = '#b45309';
+                    } else {
+                        slotBadge.style.background = '#ccfbf1';
+                        slotBadge.style.color = '#0f766e';
+                    }
+                }
+            })
+            .catch(function(e) { console.log("Polling error:", e); });
+        }
+
+        function cancelPendingSwap(pair) {
+            if (!confirm("Batalkan antrean pergantian koin untuk " + pair + " dan kembalikan ke mode Normal?")) {
+                return;
+            }
+            showToast("Membatalkan antrean pergantian...", "info");
+            fetch(API_BASE + '/action/cancel_swap', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pair: pair })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    pollStatusAll();
+                } else {
+                    showToast("Gagal batal: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error batal ganti: " + err.message, "error");
+            });
+        }
+
+        // Update Capital Prompt
+        function promptUpdateCapital() {
+            var curVal = document.getElementById('cap-injected-val') ? document.getElementById('cap-injected-val').innerText.replace('$', '').replace(' USDT', '') : '20.0';
+            var input = prompt("Masukkan total modal pokok (USDT) yang Anda setor / depositkan:", curVal);
+            if (input === null || input.trim() === "") return;
+            var num = parseFloat(input);
+            if (isNaN(num) || num < 0) {
+                showToast("Nilai modal tidak valid!", "error");
+                return;
+            }
+            fetch(API_BASE + '/action/update_capital', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ injected_capital: num })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(res) {
+                if (res.success) {
+                    showToast(res.message, "success");
+                    loadAnalytics();
+                } else {
+                    showToast("Gagal: " + res.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error update modal: " + err.message, "error");
+            });
+        }
+
+        // Load Profit Analytics Data
+        function loadAnalytics() {
+            fetch(API_BASE + '/analytics')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var a = data.analytics;
+
+                // Capital Tracker
+                var cap = a.capital_tracker;
+                if (cap) {
+                    var injEl = document.getElementById('cap-injected-val');
+                    if (injEl) injEl.innerText = "$" + cap.injected_capital.toFixed(2) + " USDT";
+
+                    var eqEl = document.getElementById('cap-equity-val');
+                    if (eqEl) eqEl.innerText = "$" + cap.current_equity.toFixed(2) + " USDT";
+
+                    var grEl = document.getElementById('cap-growth-val');
+                    if (grEl) {
+                        var sign = cap.net_growth >= 0 ? "+" : "";
+                        var cls = cap.net_growth >= 0 ? "profit" : "loss";
+                        grEl.className = cls;
+                        grEl.style.color = cap.net_growth >= 0 ? "var(--success)" : "var(--danger)";
+                        grEl.innerText = sign + "$" + cap.net_growth.toFixed(2) + " USDT (" + (cap.net_growth_pct >= 0 ? "+" : "") + cap.net_growth_pct.toFixed(1) + "%)";
+                    }
+                }
+
+                var totalEl = document.getElementById('an-total-profit');
+                if (totalEl) totalEl.innerText = (a.total_realized_profit > 0 ? "+" : "") + a.total_realized_profit + " USDT";
+
+                var todayEl = document.getElementById('an-today-profit');
+                if (todayEl) todayEl.innerText = (a.today_profit > 0 ? "+" : "") + a.today_profit + " USDT";
+
+                var monthEl = document.getElementById('an-month-profit');
+                if (monthEl) monthEl.innerText = (a.month_profit > 0 ? "+" : "") + a.month_profit + " USDT";
+
+                var tradesEl = document.getElementById('an-total-trades');
+                if (tradesEl) tradesEl.innerText = a.total_trades;
+
+                var winEl = document.getElementById('an-win-rate');
+                if (winEl) winEl.innerText = a.win_rate + "%";
+
+                var monthlyTbody = document.getElementById('monthly-table-body');
+                if (monthlyTbody) {
+                    if (!a.monthly_breakdown || a.monthly_breakdown.length === 0) {
+                        monthlyTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Belum ada riwayat bulanan.</td></tr>';
+                    } else {
+                        var mHtml = '';
+                        a.monthly_breakdown.forEach(function(row) {
+                            var tags = row.pairs.map(function(p) { return '<span class="tag-pill">' + p.replace("USDT", "") + '</span>'; }).join('');
+                            mHtml += '<tr>' +
+                                '<td style="font-weight: 800; color: #8b5cf6;"><i class="fas fa-calendar-alt" style="margin-right: 4px; opacity: 0.7;"></i>' + (row.label || row.month) + '</td>' +
+                                '<td>' + tags + '</td>' +
+                                '<td><span style="font-weight: 700; background: #f3e8ff; color: #7e22ce; padding: 2px 8px; border-radius: 10px; font-size: 11px;">' + row.trades + 'x Panen</span></td>' +
+                                '<td class="profit" style="font-weight: 800; font-size: 14px;">+' + row.profit + ' USDT</td>' +
+                            '</tr>';
+                        });
+                        monthlyTbody.innerHTML = mHtml;
+                    }
+                }
+
+                var dailyTbody = document.getElementById('daily-table-body');
+                if (dailyTbody) {
+                    if (a.daily_breakdown.length === 0) {
+                        dailyTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Belum ada riwayat penjualan.</td></tr>';
+                    } else {
+                        var dHtml = '';
+                        a.daily_breakdown.forEach(function(row) {
+                            var tags = row.pairs.map(function(p) { return '<span class="tag-pill">' + p.replace("USDT", "") + '</span>'; }).join('');
+                            dHtml += '<tr>' +
+                                '<td style="font-weight: 700;">' + row.date + '</td>' +
+                                '<td>' + tags + '</td>' +
+                                '<td>' + row.trades + 'x Panen</td>' +
+                                '<td class="profit" style="font-weight: 700;">+' + row.profit + ' USDT</td>' +
+                            '</tr>';
+                        });
+                        dailyTbody.innerHTML = dHtml;
+                    }
+                }
+
+                var histTbody = document.getElementById('history-table-body');
+                if (histTbody) {
+                    if (a.recent_sells.length === 0) {
+                        histTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-sub);">Belum ada transaksi jual.</td></tr>';
+                    } else {
+                        var hHtml = '';
+                        a.recent_sells.forEach(function(s) {
+                            hHtml += '<tr>' +
+                                '<td style="color: var(--text-sub); font-size: 11px;">' + s.datetime + '</td>' +
+                                '<td><span class="tag-pill">' + s.pair.replace("USDT", "") + '</span></td>' +
+                                '<td>' + s.price + '</td>' +
+                                '<td class="profit" style="font-weight: 700;">+' + s.profit + ' USDT</td>' +
+                            '</tr>';
+                        });
+                        histTbody.innerHTML = hHtml;
+                    }
+                }
+            })
+            .catch(function(err) { console.log("Analytics error:", err); });
+        }
+
+        // Load Scanner Data
+        function loadScanner(isManual = false) {
+            if (isManual) showToast("Memindai pasar Binance Spot...", "info");
+            var notFilterEl = document.getElementById('scanner-notional-filter');
+            var maxNot = notFilterEl ? notFilterEl.value : '2.5';
+
+            fetch(API_BASE + '/scanner?max_notional=' + maxNot)
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                
+                var slotBadge = document.getElementById('slot-counter-badge');
+                if (slotBadge) {
+                    slotBadge.innerText = "Active Slots: " + data.active_slots + " / " + data.max_slots;
+                    if (data.active_slots >= data.max_slots) {
+                        slotBadge.style.background = '#fef3c7';
+                        slotBadge.style.color = '#b45309';
+                    } else {
+                        slotBadge.style.background = '#ccfbf1';
+                        slotBadge.style.color = '#0f766e';
+                    }
+                }
+
+                var tbody = document.getElementById('scanner-table-body');
+                if (!tbody) return;
+
+                if (!data.candidates || data.candidates.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-sub);">Tidak ada koin yang memenuhi kriteria radar saat ini.</td></tr>';
+                    return;
+                }
+
+                var html = '';
+                data.candidates.forEach(function(c) {
+                    var chgClass = c.change_24h >= 0 ? 'profit' : 'loss';
+                    var rsiBadge = c.rsi <= 40 ? '<span style="color:#059669; font-weight:700;">' + c.rsi + ' (Oversold)</span>' : c.rsi;
+                    var minNotVal = c.min_notional !== undefined ? c.min_notional : 1.0;
+                    var notBadge = minNotVal <= 1.5 
+                        ? '<span style="color:#059669; font-weight:700; background:#ecfdf5; padding:2px 6px; border-radius:4px; font-size:11px;">$' + minNotVal.toFixed(0) + ' (Mikro)</span>' 
+                        : '<span style="color:#2563eb; font-weight:700; background:#eff6ff; padding:2px 6px; border-radius:4px; font-size:11px;">$' + minNotVal.toFixed(0) + ' (Standar)</span>';
+
+                    var cName = c.name || c.coin;
+                    var cSector = c.sector || 'Binance Spot';
+                    var cDesc = c.desc || ('Aset kripto ' + c.coin + ' di pasar spot Binance.');
+                    var coinCell = '<div class="coin-tooltip-wrapper">' +
+                        '<span class="coin-tooltip-trigger">' + c.coin + '</span>' +
+                        '<div class="coin-tooltip-card">' +
+                            '<div class="coin-tooltip-title"><span>' + cName + '</span><span class="coin-tooltip-sector">' + cSector + '</span></div>' +
+                            '<div class="coin-tooltip-desc">' + cDesc + '</div>' +
+                        '</div>' +
+                    '</div> <small style="color:var(--text-sub);">/USDT</small>';
+
+                    html += '<tr>' +
+                        '<td>' + coinCell + '</td>' +
+                        '<td>' + c.price + '</td>' +
+                        '<td class="' + chgClass + '" style="font-weight:700;">' + (c.change_24h > 0 ? '+' : '') + c.change_24h + '%</td>' +
+                        '<td>$' + c.volume_24h_m + 'M</td>' +
+                        '<td>' + notBadge + '</td>' +
+                        '<td>' + rsiBadge + '</td>' +
+                        '<td>' +
+                            '<button class="action-btn btn-dust" style="padding: 4px 8px; font-size: 11px; margin-right: 5px;" onclick="prefillBacktest(\'' + c.symbol + '\')"><i class="fas fa-vial"></i> Test</button>' +
+                            '<button class="action-btn btn-buy" style="padding: 4px 8px; font-size: 11px;" onclick="quickAddPair(\'' + c.symbol + '\')"><i class="fas fa-plus"></i> Add</button>' +
+                        '</td>' +
+                    '</tr>';
+                });
+                tbody.innerHTML = html;
+                if (isManual) showToast("Radar pasar berhasil diperbarui!", "success");
+            })
+            .catch(function(err) { console.log("Scanner error:", err); });
+        }
+
+        // Prefill Simulator from Scanner
+        function prefillBacktest(symbol) {
+            document.getElementById('bt-pair').value = symbol;
+            document.getElementById('bt-pair').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Run Simulator
+        function runCustomBacktest(event) {
+            event.preventDefault();
+            var pair = document.getElementById('bt-pair').value.toUpperCase().trim();
+            var days = parseInt(document.getElementById('bt-days').value);
+            var budget = parseFloat(document.getElementById('bt-budget').value);
+            var buyAmt = parseFloat(document.getElementById('bt-buy').value);
+
+            var submitBtn = event.target.querySelector('button[type="submit"]');
+            var originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
+            if (submitBtn) {
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghitung Simulasi (' + days + ' Hari)...';
+                submitBtn.disabled = true;
+            }
+
+            showToast("Menjalankan simulasi DCA " + days + " hari untuk " + pair + "...", "info");
+
+            fetch(API_BASE + '/backtest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pair: pair,
+                    days: days,
+                    budget_usd: budget,
+                    buy_amount: buyAmt
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (submitBtn) {
+                    submitBtn.innerHTML = originalBtnHtml;
+                    submitBtn.disabled = false;
+                }
+                if (!data.success) {
+                    showToast("Backtest Gagal: " + data.message, "error");
+                    return;
+                }
+
+                LAST_BACKTEST_PAIR = data.pair;
+                document.getElementById('bt-res-title').innerText = "Hasil Uji DCA: " + data.pair + " (" + data.days_tested + " Hari)";
+                document.getElementById('bt-res-profit').innerText = "+" + data.total_realized_profit + " USDT";
+                document.getElementById('bt-res-roi').innerText = "+" + data.roi_pct + "%";
+                document.getElementById('bt-res-cycles').innerText = data.completed_cycles + "x Take Profit";
+                document.getElementById('bt-res-maxlayer').innerText = "Layer " + data.max_layer_reached;
+                
+                var safetyBadge = document.getElementById('bt-res-safety');
+                safetyBadge.innerText = data.safety_status;
+                if (data.max_layer_reached <= 2) {
+                    safetyBadge.style.background = '#ecfdf5'; safetyBadge.style.color = '#059669';
+                } else if (data.max_layer_reached <= 3) {
+                    safetyBadge.style.background = '#eff6ff'; safetyBadge.style.color = '#2563eb';
+                } else {
+                    safetyBadge.style.background = '#fef2f2'; safetyBadge.style.color = '#dc2626';
+                }
+                
+                var safetyReasonEl = document.getElementById('bt-res-safety-reason');
+                if (safetyReasonEl) {
+                    safetyReasonEl.innerText = data.safety_reason || 'Simulasi keamanan DCA berjalan normal.';
+                }
+
+                // Update Coin Knowledge Profile in Backtest Result
+                var cInfo = data.coin_info || {};
+                var cCoinClean = data.pair.replace('USDT', '');
+                var coinTitle = (cInfo.name && cInfo.name !== cCoinClean) ? cInfo.name + ' (' + cCoinClean + ')' : cCoinClean;
+                document.getElementById('bt-info-name').innerText = coinTitle;
+                document.getElementById('bt-info-sector').innerText = cInfo.sector || 'Binance Spot Asset';
+                document.getElementById('bt-info-desc').innerText = cInfo.desc || ('Aset kripto ' + data.pair + ' yang diperdagangkan di pasar Spot Binance.');
+
+                document.getElementById('bt-result-box').style.display = 'block';
+                showToast("Simulasi selesai! Profit: +" + data.total_realized_profit + " USDT (" + data.completed_cycles + "x TP)", "success");
+            })
+            .catch(function(err) {
+                if (submitBtn) {
+                    submitBtn.innerHTML = originalBtnHtml;
+                    submitBtn.disabled = false;
+                }
+                showToast("Error backtest: " + err.message, "error");
+            });
+        }
+
+        function addBacktestedPair() {
+            if (!LAST_BACKTEST_PAIR) return;
+            quickAddPair(LAST_BACKTEST_PAIR);
+        }
+
+        function openSwapModal(newPair, budget, buyAmt, activePairs) {
+            document.getElementById('swap-new-pair').value = newPair;
+            document.getElementById('swap-new-pair-title').innerText = newPair;
+            document.getElementById('swap-new-budget').value = budget;
+            document.getElementById('swap-new-buy').value = buyAmt;
+
+            var container = document.getElementById('swap-target-options');
+            container.innerHTML = '';
+
+            var pairsList = activePairs || [];
+            if (pairsList.length === 0) {
+                for (var p in GLOBAL_PAIRS_DATA) {
+                    pairsList.push({
+                        pair: p,
+                        layers_count: GLOBAL_PAIRS_DATA[p].layers_count || 0,
+                        budget_left: GLOBAL_PAIRS_DATA[p].budget_left || 0,
+                        status: GLOBAL_PAIRS_DATA[p].status || 1
+                    });
+                }
+            }
+
+            pairsList.forEach(function(item, idx) {
+                var isChecked = idx === 0 ? 'checked' : '';
+                var layerLabel = item.layers_count > 0 ? item.layers_count + ' Layer Aktif' : '0 Layer (Posisi Kosong)';
+                var html = '<label style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer;">' +
+                    '<div style="display: flex; align-items: center; gap: 10px;">' +
+                        '<input type="radio" name="target_replace_pair" value="' + item.pair + '" ' + isChecked + '>' +
+                        '<div>' +
+                            '<strong style="font-size: 14px; color: #1e293b;">' + item.pair + '</strong>' +
+                            '<div style="font-size: 11px; color: #64748b;">Status: ' + layerLabel + ' | Sisa Budget: $' + item.budget_left + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<span style="font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #e2e8f0; color: #475569;">Gantikan Koin Ini</span>' +
+                '</label>';
+                container.innerHTML += html;
+            });
+
+            document.getElementById('swap-modal').style.display = 'flex';
+        }
+
+        function closeSwapModal() {
+            document.getElementById('swap-modal').style.display = 'none';
+        }
+
+        function submitSwapCoin(event) {
+            event.preventDefault();
+            var newPair = document.getElementById('swap-new-pair').value;
+            var budget = parseFloat(document.getElementById('swap-new-budget').value || 15.0);
+            var buyAmt = parseFloat(document.getElementById('swap-new-buy').value || 2.1);
+            
+            var targetPairEl = document.querySelector('input[name="target_replace_pair"]:checked');
+            if (!targetPairEl) {
+                showToast("Pilih koin yang ingin digantikan terlebih dahulu!", "error");
+                return;
+            }
+            var targetPair = targetPairEl.value;
+            var modeEl = document.querySelector('input[name="swap_mode"]:checked');
+            var mode = modeEl ? modeEl.value : 'sell_only';
+
+            var confirmMsg = mode === 'force_sell'
+                ? "⚠️ PERINGATAN: Koin " + targetPair + " akan langsung di-Force Sell sekarang di harga pasar dan digantikan oleh " + newPair + ".\n\nLanjutkan ganti koin?"
+                : "ℹ️ Koin " + targetPair + " akan diubah ke mode 'Sell Only' (mengawal sampai Take Profit). Setelah posisi tertutup, slot otomatis dialihkan ke " + newPair + ".\n\nLanjutkan ganti koin?";
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+
+            closeSwapModal();
+            showToast("Memproses pergantian " + targetPair + " dengan " + newPair + "...", "info");
+
+            fetch(API_BASE + '/action/add_pair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pair: newPair,
+                    replace_pair: targetPair,
+                    replace_mode: mode,
+                    budget_usd: budget,
+                    buy_amount: buyAmt
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else {
+                    showToast("Gagal ganti koin: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error ganti koin: " + err.message, "error");
+            });
+        }
+
+        function quickAddPair(pair) {
+            var budget = parseFloat(document.getElementById('bt-budget').value || 15.0);
+            var buyAmt = parseFloat(document.getElementById('bt-buy').value || 2.1);
+
+            // Cek jika slot sudah 2/2 aktif
+            var activeCount = Object.keys(GLOBAL_PAIRS_DATA).length;
+            if (activeCount >= 2) {
+                openSwapModal(pair, budget, buyAmt);
+                return;
+            }
+
+            if (!confirm("Tambahkan koin " + pair + " ke dalam Live Trading Bot sekarang?")) {
+                return;
+            }
+
+            showToast("Mendaftarkan " + pair + " ke engine trading...", "info");
+
+            fetch(API_BASE + '/action/add_pair', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    pair: pair,
+                    budget_usd: budget,
+                    buy_amount: buyAmt
+                })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast(data.message, "success");
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                } else if (data.requires_swap) {
+                    openSwapModal(pair, budget, buyAmt, data.active_pairs);
+                } else {
+                    showToast("Gagal: " + data.message, "error");
+                }
+            })
+            .catch(function(err) {
+                showToast("Error add pair: " + err.message, "error");
+            });
+        }
+    </script>
+
+    <!-- CHART.JS INITIALIZATION -->
+    <script>
+    {% for p in pairs_data %}
+    new Chart(document.getElementById('priceChart_{{ p.pair }}').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: {{ p.chart_labels | tojson }},
+            datasets: [{
+                label: '{{ p.pair.replace("USDT", "") }} Price',
+                data: {{ p.chart_data | tojson }},
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                borderWidth: 2,
+                pointRadius: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { 
+                    beginAtZero: false, 
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: {
+                        callback: function(value) {
+                            if (value === 0) return '0';
+                            return Number(value).toFixed(8).replace(/\.?0+$/, '');
+                        }
+                    }
+                },
+                x: { display: false }
+            },
+            plugins: { legend: { display: false } }
+        }
+    });
+    {% endfor %}
+    </script>
+</body>
+</html>

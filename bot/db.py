@@ -9,6 +9,20 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "bot_trading.db")
 
+def get_local_now():
+    """
+    Mengembalikan waktu lokal (default: Asia/Jakarta / WIB / UTC+7) secara deterministik
+    terlepas dari timezone OS server VPS (UTC / UTC+8 / dsb).
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        tz_name = os.getenv('BOT_TIMEZONE', 'Asia/Jakarta')
+        return datetime.now(ZoneInfo(tz_name)).replace(tzinfo=None)
+    except Exception:
+        from datetime import timezone, timedelta
+        tz_offset = int(os.getenv('TIMEZONE_OFFSET', 7))
+        return datetime.now(timezone(timedelta(hours=tz_offset))).replace(tzinfo=None)
+
 def get_db_connection():
     """Mengembalikan koneksi SQLite dengan mode WAL untuk multi-threading aman."""
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
@@ -582,7 +596,7 @@ def db_log_trade_action(pair, action, price=0.0, qty=0.0, profit=0.0, message=""
         profit_val = float(profit or 0.0)
     except (ValueError, TypeError):
         profit_val = 0.0
-    now = datetime.now()
+    now = get_local_now()
     d_str = now.strftime("%Y-%m-%d")
     t_str = now.strftime("%H:%M:%S")
     conn = get_db_connection()
@@ -617,7 +631,7 @@ def db_get_pair_logs_formatted(pair, limit=20):
 
 def db_log_price(pair, price):
     """Menyimpan history harga ke SQLite (auto-trim ke 48 entri terbaru per pair)."""
-    now = datetime.now()
+    now = get_local_now()
     t_str = now.strftime("%H:%M")
     conn = get_db_connection()
     c = conn.cursor()
@@ -648,14 +662,14 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
     total_trades = row_tot[0]
     total_realized_profit = round(row_tot[1], 4)
     
-    # 2. Today Profit
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date = ? AND ({REALIZED_FILTER})", (today_str,))
+    # 2. Today Profit (Deterministic WIB / Asia/Jakarta)
+    today_str = get_local_now().strftime("%Y-%m-%d")
+    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE substr(trade_date, 1, 10) = ? AND ({REALIZED_FILTER})", (today_str,))
     today_profit = round(c.fetchone()[0], 4)
     
-    # 3. This Month Profit
-    month_str = datetime.now().strftime("%Y-%m")
-    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE trade_date LIKE ? AND ({REALIZED_FILTER})", (f"{month_str}%",))
+    # 3. This Month Profit (Deterministic WIB / Asia/Jakarta)
+    month_str = get_local_now().strftime("%Y-%m")
+    c.execute(f"SELECT COALESCE(SUM(profit), 0.0) FROM trade_history WHERE substr(trade_date, 1, 7) = ? AND ({REALIZED_FILTER})", (month_str,))
     month_profit = round(c.fetchone()[0], 4)
     
     # 4. Monthly Breakdown
@@ -691,11 +705,11 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
         
     # 5. Daily Breakdown (30 hari terakhir)
     c.execute(f"""
-    SELECT trade_date, COUNT(*), SUM(profit), GROUP_CONCAT(DISTINCT pair)
+    SELECT substr(trade_date, 1, 10) as dt, COUNT(*), SUM(profit), GROUP_CONCAT(DISTINCT pair)
     FROM trade_history
     WHERE {REALIZED_FILTER}
-    GROUP BY trade_date
-    ORDER BY trade_date DESC
+    GROUP BY dt
+    ORDER BY dt DESC
     LIMIT 30
     """)
     d_rows = c.fetchall()
@@ -711,6 +725,12 @@ def db_get_analytics_data(injected_capital, free_usdt, total_usdt):
             "trades": cnt,
             "pairs": pairs_set
         })
+        
+    # Safeguard: Sinkronkan today_profit dengan record harian jika tanggal sama
+    for d in daily_list:
+        if d["date"] == today_str:
+            today_profit = d["profit"]
+            break
         
     # 6. Recent Trades (Semua transaksi termasuk BUY & SELL untuk log dan inspeksi)
     c.execute("""

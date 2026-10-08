@@ -185,6 +185,17 @@ def require_auth():
 
 # ============ HELPERS ============
 
+def get_local_now():
+    """Mengembalikan waktu lokal WIB (Asia/Jakarta) secara deterministik."""
+    try:
+        from zoneinfo import ZoneInfo
+        tz_name = os.getenv('BOT_TIMEZONE', 'Asia/Jakarta')
+        return datetime.now(ZoneInfo(tz_name)).replace(tzinfo=None)
+    except Exception:
+        from datetime import timezone, timedelta
+        tz_offset = int(os.getenv('TIMEZONE_OFFSET', 7))
+        return datetime.now(timezone(timedelta(hours=tz_offset))).replace(tzinfo=None)
+
 def fmt(v):
     if v == 0: return "0"
     return f"{float(v):.8f}".rstrip('0').rstrip('.')
@@ -3082,7 +3093,7 @@ def get_next_layer_str(pair, data, price, avg_buy):
 
 @app.route('/')
 def index():
-    now_str = datetime.now().strftime("%d %B %Y %H:%M:%S")
+    now_str = get_local_now().strftime("%d %B %Y %H:%M:%S")
     pairs_data = []
     
     for pair in PAIRS:
@@ -3367,7 +3378,7 @@ def api_status_all():
     free_usdt, total_usdt = get_total_usdt_value_cached()
     return jsonify({
         "success": True,
-        "now": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        "now": get_local_now().strftime('%Y-%m-%d %H:%M:%S'),
         "free_usdt": free_usdt,
         "total_usdt": total_usdt,
         "global_settings": get_global_settings(),
@@ -4042,7 +4053,14 @@ def sync_trades_from_binance_api(target_pair=None):
             synced_count = 0
             
             for t in trades:
-                dt = datetime.fromtimestamp(t['time'] / 1000)
+                try:
+                    from zoneinfo import ZoneInfo
+                    tz_target = ZoneInfo(os.getenv('BOT_TIMEZONE', 'Asia/Jakarta'))
+                    dt = datetime.fromtimestamp(t['time'] / 1000, tz=tz_target).replace(tzinfo=None)
+                except Exception:
+                    from datetime import timezone, timedelta
+                    tz_target = timezone(timedelta(hours=int(os.getenv('TIMEZONE_OFFSET', 7))))
+                    dt = datetime.fromtimestamp(t['time'] / 1000, tz=tz_target).replace(tzinfo=None)
                 d_str = dt.strftime("%Y-%m-%d")
                 t_str = dt.strftime("%H:%M:%S")
                 is_buy = t['isBuyer']
